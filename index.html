@@ -6790,8 +6790,14 @@
         reader.onload = async (re) => {
           try {
             const parsed = JSON.parse(re.target.result);
-            if (!parsed.students) { showToast("Invalid backup JSON file"); return; }
-            if (confirm(`Restore ${parsed.students.length} students & attendance records from this backup?`)) {
+            const studentsList =
+              (parsed && parsed.tables && Array.isArray(parsed.tables.students) ? parsed.tables.students : null) ||
+              (parsed && Array.isArray(parsed.students) ? parsed.students : null) ||
+              (Array.isArray(parsed) ? parsed : null);
+            if (!studentsList || studentsList.length === 0) { showToast("Invalid backup file: No student records found"); return; }
+            // reassign parsed.students so confirm works
+            parsed._students = studentsList;
+            if (confirm(`Restore ${(parsed._students || parsed.students || []).length} students & attendance records from this backup?`)) {
               const res = await api.post('/api/admin/restore-json', parsed);
               showToast(res.message || "Backup restored successfully! 🎉");
               await loadDataForRole();
@@ -7804,10 +7810,15 @@
             <img id="joinPhotoPreview" src="${DEFAULT_STUDENT_AVATAR}" style="width:84px;height:84px;border-radius:50%;object-fit:cover;border:3px solid var(--accent);box-shadow:0 4px 14px rgba(2,132,199,0.25);background:#FFFFFF;display:block;margin:0 auto;" onerror="this.src=DEFAULT_STUDENT_AVATAR" />
           </div>
           <div>
-            <label style="background:linear-gradient(180deg, #38BDF8 0%, #0284C7 100%);color:#ffffff;padding:7px 18px;border-radius:22px;font-size:12px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:6px;box-shadow:0 4px 12px rgba(2,132,199,0.3);">
-              📷 Take or Choose Photo (Mandatory)
-              <input type="file" id="joinPhotoInput" accept="image/*" style="display:none;" />
-            </label>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;">
+              <button type="button" id="joinCameraBtn" style="background:linear-gradient(180deg,#38BDF8 0%,#0284C7 100%);color:#fff;padding:8px 16px;border-radius:22px;font-size:12px;font-weight:800;cursor:pointer;border:none;display:inline-flex;align-items:center;gap:6px;box-shadow:0 4px 12px rgba(2,132,199,0.3);">
+                📸 Live Camera (Flash)
+              </button>
+              <label style="background:var(--card);color:var(--text);padding:8px 14px;border-radius:22px;font-size:12px;font-weight:700;cursor:pointer;border:1px solid var(--line);display:inline-flex;align-items:center;gap:6px;">
+                📁 Gallery
+                <input type="file" id="joinPhotoInput" accept="image/*" style="display:none;" />
+              </label>
+            </div>
           </div>
         </div>
 
@@ -7941,6 +7952,21 @@
     document.getElementById("btnViewBrochureJoin").onclick = openFeeStructureModal;
 
     let joinPhotoBase64 = '';
+
+    // Live camera button
+    const joinCameraBtn = document.getElementById("joinCameraBtn");
+    if (joinCameraBtn) {
+      joinCameraBtn.onclick = () => {
+        openLiveCameraWithScreenFlashModal((compressedBase64) => {
+          joinPhotoBase64 = compressedBase64;
+          const prevEl = document.getElementById("joinPhotoPreview");
+          if (prevEl) prevEl.src = joinPhotoBase64;
+          showToast("📸 Studio photo captured!");
+        });
+      };
+    }
+
+    // Gallery / file input
     const joinPhotoInput = document.getElementById("joinPhotoInput");
     if (joinPhotoInput) {
       joinPhotoInput.onchange = (e) => {
