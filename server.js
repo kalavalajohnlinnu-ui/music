@@ -1550,7 +1550,61 @@ const server = http.createServer(async (req, res) => {
       }
     }
 
-            if (method === 'POST' && (pathname === '/api/admin/restore-data' || pathname === '/api/admin/restore-json' || pathname === '/api/backup/restore')) {
+                // -------------------------------------------------------------
+    // RESTORE RAW .DB SQLITE BACKUP FILE
+    // -------------------------------------------------------------
+    if (method === 'POST' && (pathname === '/api/admin/restore-db' || pathname === '/api/backup/restore-db')) {
+      try {
+        const chunks = [];
+        for await (const chunk of req) {
+          chunks.push(chunk);
+        }
+        const fileBuffer = Buffer.concat(chunks);
+        if (!fileBuffer || fileBuffer.length < 100) {
+          return sendError(res, 400, 'Invalid or empty database file uploaded');
+        }
+
+        // Verify SQLite header magic string: 'SQLite format 3\0'
+        const header = fileBuffer.slice(0, 16).toString('utf-8');
+        if (!header.startsWith('SQLite format 3')) {
+          return sendError(res, 400, 'Uploaded file is not a valid SQLite .db database');
+        }
+
+        // Safely write to database file
+        const dbPath = path.join(__dirname, 'sir_slot.db');
+        try { db.exec('PRAGMA wal_checkpoint(TRUNCATE);'); } catch(e) {}
+        fs.writeFileSync(dbPath, fileBuffer);
+
+        // Re-run schema migrations on restored DB
+        try {
+          ensureTableColumns('requests', {
+            photo: 'TEXT', note: 'TEXT', duration_hours: 'INTEGER DEFAULT 1',
+            slot_type: "TEXT DEFAULT 'solo'", group_name: 'TEXT',
+            group_members: "TEXT DEFAULT '[]'", instruments: "TEXT DEFAULT '[]'",
+            timezone: "TEXT DEFAULT 'Asia/Kolkata'", country: "TEXT DEFAULT 'India'", status: "TEXT DEFAULT 'pending'"
+          });
+          ensureTableColumns('students', {
+            photo: 'TEXT', custom_days: 'TEXT', student_type: "TEXT DEFAULT 'regular'",
+            group_id: 'TEXT', group_name: 'TEXT', group_members: "TEXT DEFAULT '[]'",
+            instruments: "TEXT DEFAULT '[]'", skill_level: "TEXT DEFAULT 'Beginner'",
+            current_lesson: 'TEXT', homework: 'TEXT', timezone: "TEXT DEFAULT 'Asia/Kolkata'",
+            country: "TEXT DEFAULT 'India'", is_archived: 'INTEGER DEFAULT 0', archived_at: 'INTEGER DEFAULT 0'
+          });
+        } catch(migErr) {}
+
+        const stuCount = db.prepare('SELECT COUNT(*) as c FROM students').get().c;
+
+        return sendJson(res, 200, {
+          success: true,
+          message: `Database restored successfully! Found ${stuCount} students in roster.`
+        });
+      } catch (err) {
+        console.error('DB Restore Error:', err);
+        return sendError(res, 500, 'Database file restore failed: ' + err.message);
+      }
+    }
+
+    if (method === 'POST' && (pathname === '/api/admin/restore-data' || pathname === '/api/admin/restore-json' || pathname === '/api/backup/restore')) {
       try {
         const body = await parseBody(req);
         if (!body) return sendError(res, 400, 'Invalid or empty backup payload');
