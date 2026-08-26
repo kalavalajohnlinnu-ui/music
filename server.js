@@ -1679,22 +1679,21 @@ const server = http.createServer(async (req, res) => {
           });
 
           if (rawAttendance.length > 0) {
+            // attendance table PK is (date_key, student_id) — no id or member_name column
             const insAtt = db.prepare(`
               INSERT OR REPLACE INTO attendance (
-                id, date_key, student_id, member_name, status, member_statuses, is_out_of_batch, updated_at
-              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                date_key, student_id, status, member_statuses, is_out_of_batch, updated_at
+              ) VALUES (?, ?, ?, ?, ?, ?)
             `);
             rawAttendance.forEach(a => {
-              const aid = a.id || uid();
               const dkey = a.dateKey || a.date_key || a.date;
               const sid = a.studentId || a.student_id;
               if (!dkey || !sid) return;
-              const memName = a.memberName || a.member_name || null;
               const status = a.status || 'present';
               const memStatuses = typeof a.memberStatuses === 'object' ? JSON.stringify(a.memberStatuses) : (a.member_statuses || '{}');
               const isOut = a.isOutOfBatch || a.is_out_of_batch || 0;
               const updated = a.updatedAt || a.updated_at || Date.now();
-              insAtt.run(aid, dkey, sid, memName, status, memStatuses, isOut, updated);
+              insAtt.run(dkey, sid, status, memStatuses, isOut, updated);
             });
           }
 
