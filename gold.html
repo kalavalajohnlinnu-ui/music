@@ -3210,6 +3210,18 @@
       };
     });
 
+    main.querySelectorAll("[data-toggle-info]").forEach(btn => {
+      btn.onclick = () => {
+        const targetId = btn.getAttribute("data-toggle-info");
+        const panel = document.getElementById(targetId);
+        if (!panel) return;
+        const isHidden = panel.style.display === "none" || !panel.style.display;
+        panel.style.display = isHidden ? "block" : "none";
+        btn.innerHTML = isHidden ? "▲ Hide Details &amp; Actions" : "ℹ️ Click for More Info &amp; Actions ▾";
+        btn.style.background = isHidden ? "rgba(2,132,199,0.14)" : "rgba(2,132,199,0.06)";
+      };
+    });
+
     main.querySelectorAll("[data-book-slot]").forEach(btn => btn.onclick = () => openBookSheet(btn.getAttribute("data-book-slot"), key));
     main.querySelectorAll("[data-call]").forEach(btn => btn.onclick = () => { window.location.href = telLink(btn.getAttribute("data-call")); });
     main.querySelectorAll("[data-msg]").forEach(btn => btn.onclick = () => openMessageSheet(btn.getAttribute("data-msg"), btn.getAttribute("data-msg-mobile")));
@@ -3301,9 +3313,14 @@
     }
 
     if (it.free) {
-      return `<div class="slot free">
-        <div class="row between"><div class="time">${fmtTime(it.slotTime)}</div><span class="badge present">Open Slot</span></div>
-        <div class="actionrow"><button class="btn primary sm" data-book-slot="${it.slotTime}">+ Book Slot (Regular / Flexible)</button></div>
+      return `<div class="slot free" style="background:linear-gradient(135deg, rgba(236,253,245,0.92) 0%, rgba(209,250,229,0.7) 100%);border:2px dashed #10B981;border-left:6px solid #10B981;box-shadow:0 4px 14px rgba(16,185,129,0.12);margin-bottom:12px;">
+        <div class="row between">
+          <div class="time" style="color:#047857;font-weight:800;font-size:18px;">${fmtTime(it.slotTime)}</div>
+          <span class="badge" style="background:#10B981;color:#ffffff;font-weight:800;font-size:10.5px;padding:3px 10px;border-radius:12px;box-shadow:0 2px 6px rgba(16,185,129,0.25);">🟢 FREE / AVAILABLE SLOT</span>
+        </div>
+        <div class="actionrow" style="margin-top:10px;">
+          <button class="btn sm" data-book-slot="${it.slotTime}" style="background:linear-gradient(135deg, #10B981 0%, #059669 100%);color:#ffffff;border:none;font-weight:700;box-shadow:0 2px 8px rgba(16,185,129,0.35);padding:7px 16px;border-radius:10px;cursor:pointer;">+ Book Slot (Regular / Flexible)</button>
+        </div>
       </div>`;
     }
 
@@ -3390,36 +3407,44 @@
     }
 
     const photoSrc = it.photo || DEFAULT_STUDENT_AVATAR;
-    return `<div class="slot ${it.status === 'absent' ? 'makeup-open' : ''}">
+    const infoId = `slotInfo_${(it.id || it.slotTime || Math.random()).toString().replace(/[^a-zA-Z0-9_-]/g, '')}_${(it.slotTime || '').replace(':', '')}`;
+
+    return `<div class="slot slot-booked ${it.status === 'absent' ? 'makeup-open' : ''}" style="background:linear-gradient(135deg, #F0F9FF 0%, #E0F2FE 45%, #FFFFFF 100%);border:1.5px solid #0284C7;border-left:6px solid #0284C7;box-shadow:0 4px 14px rgba(2,132,199,0.14);margin-bottom:12px;">
       <div class="row between">
-        <div class="time">${fmtTimeRange(it.slotTime, it.durationHours || 1)}</div>
-        <div>
+        <div class="time" style="color:#0369A1;font-weight:800;font-size:17.5px;">${fmtTimeRange(it.slotTime, it.durationHours || 1)}</div>
+        <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;justify-content:flex-end;">
+          <span class="badge" style="background:linear-gradient(135deg, #0284C7 0%, #0369A1 100%);color:#ffffff;font-weight:800;font-size:10px;padding:3px 9px;border-radius:12px;letter-spacing:0.04em;box-shadow:0 2px 6px rgba(2,132,199,0.25);">🔒 BOOKED</span>
           ${durBadge}
           ${it.type === 'makeup' ? '<span class="badge makeup">Make-up</span>' : ''} ${outOfBatchBadge}
           ${groupBadge}
-          <span class="badge ${it.type}">${it.type === 'regular' ? '🎓 Fixed Batch' : it.type === 'makeup' ? '🔄 Make-up' : '⚡ Flexible Session'}</span>
+          <span class="badge ${it.type}">${it.type === 'regular' ? '🎓 Fixed Batch' : it.type === 'makeup' ? '🔄 Make-up' : '⚡ Flexible'}</span>
         </div>
       </div>
-      <div style="display:flex;align-items:center;gap:10px;margin:6px 0 4px;">
-        ${isGroup ? renderGroupAvatars(it.groupMembers, it.photo, 40) : `<img src="${photoSrc}" alt="${escapeHtml(it.name)}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;border:2px solid var(--accent);box-shadow:0 2px 6px rgba(2,132,199,0.15);background:var(--card-solid);display:block;flex-shrink:0;" onerror="this.src='/itma-logo.png'" />`}
+      <div style="display:flex;align-items:center;gap:10px;margin:8px 0 4px;">
+        ${isGroup ? renderGroupAvatars(it.groupMembers, it.photo, 42) : `<img src="${photoSrc}" alt="${escapeHtml(it.name)}" style="width:42px;height:42px;border-radius:50%;object-fit:cover;border:2.5px solid var(--accent);box-shadow:0 2px 8px rgba(2,132,199,0.2);background:var(--card-solid);display:block;flex-shrink:0;" onerror="this.src='/itma-logo.png'" />`}
         <div style="flex:1;min-width:0;">
-          <div class="name" style="margin:0;font-size:16px;">${escapeHtml(it.name)} ${statusBadge} ${getTimezoneBadge(it.timezone)}</div>
-          <div class="phone" style="font-size:12px;margin-top:1px;">${it.mobile}</div>
+          <div class="name" style="margin:0;font-size:16px;font-weight:800;color:#0B2545;">${escapeHtml(it.name)} ${statusBadge} ${getTimezoneBadge(it.timezone)}</div>
+          <div class="phone" style="font-size:12.5px;margin-top:2px;color:var(--muted);font-weight:600;">📱 ${it.mobile}</div>
         </div>
       </div>
-      ${membersText}
-      ${instBadges ? `<div style="margin-top:6px;">${instBadges}</div>` : ''}
-      ${it.currentLesson ? `<div class="muted" style="font-size:11.5px;margin-top:4px;">🎼 Lesson: <i>${escapeHtml(it.currentLesson)}</i></div>` : ''}
-      ${makeupNotice}
-      <div class="actionrow">
-        <button class="btn ghost" data-call="${it.mobile}">📞 Call</button>
-        <button class="btn ghost" data-msg="${msgText.replace(/"/g, '&quot;')}" data-msg-mobile="${it.mobile}">💬 Message</button>
-        ${it.type === 'regular' ? `
-          <button class="btn primary" data-perf-slot="${it.id}">⭐ Evaluate</button>
-          <button class="btn ghost" data-edit-student="${it.id}">🕒 Change Timing</button>
-        ` : ''}
-        ${attendanceButtons}
-        ${cancelBtn}
+      <div style="margin-top:8px;">
+        <button type="button" class="btn sm ghost" data-toggle-info="${infoId}" style="border-color:#0284C7;color:#0284C7;font-weight:700;padding:5px 14px;border-radius:9px;background:rgba(2,132,199,0.06);display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;">ℹ️ Click for More Info &amp; Actions ▾</button>
+      </div>
+      <div id="${infoId}" class="slot-expanded-details" style="display:none;margin-top:10px;padding-top:10px;border-top:1px dashed rgba(2,132,199,0.25);">
+        ${membersText}
+        ${instBadges ? `<div style="margin:4px 0 6px;">${instBadges}</div>` : ''}
+        ${it.currentLesson ? `<div class="muted" style="font-size:12px;margin:4px 0;">🎼 Lesson: <b>${escapeHtml(it.currentLesson)}</b></div>` : ''}
+        ${makeupNotice}
+        <div class="actionrow" style="margin-top:10px;">
+          <button class="btn ghost" data-call="${it.mobile}">📞 Call</button>
+          <button class="btn ghost" data-msg="${msgText.replace(/"/g, '&quot;')}" data-msg-mobile="${it.mobile}">💬 Message</button>
+          ${it.type === 'regular' ? `
+            <button class="btn primary" data-perf-slot="${it.id}">⭐ Evaluate</button>
+            <button class="btn ghost" data-edit-student="${it.id}">🕒 Change Timing</button>
+          ` : ''}
+          ${attendanceButtons}
+          ${cancelBtn}
+        </div>
       </div>
     </div>`;
   }
