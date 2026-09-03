@@ -1194,13 +1194,14 @@ const server = http.createServer(async (req, res) => {
     if (method === 'POST' && pathname === '/api/student/update-photo') {
       const session = getSessionFromReq(req);
       if (!session) return sendError(res, 401, 'Unauthorized');
-      const { photo } = await parseBody(req);
+      const { photo, studentId: reqStudentId } = await parseBody(req);
       if (!photo || photo.length < 50) return sendError(res, 400, 'Valid photo is required');
       
-      const studentId = session.user_id;
       let targetStu = null;
-      if (studentId) targetStu = db.prepare('SELECT * FROM students WHERE id = ?').get(studentId);
+      if (reqStudentId) targetStu = db.prepare('SELECT * FROM students WHERE id = ?').get(reqStudentId);
+      if (!targetStu && session.user_id) targetStu = db.prepare('SELECT * FROM students WHERE id = ?').get(session.user_id);
       if (!targetStu && session.mobile) targetStu = db.prepare('SELECT * FROM students WHERE mobile = ?').get(session.mobile);
+      if (!targetStu && session.role === 'coach' && reqStudentId) targetStu = db.prepare('SELECT * FROM students WHERE id = ?').get(reqStudentId);
       if (!targetStu) return sendError(res, 404, 'Student profile not found');
 
       db.prepare('UPDATE students SET photo = ?, photo_required = 0, photo_instruction = NULL WHERE id = ?').run(photo, targetStu.id);

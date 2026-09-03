@@ -7861,13 +7861,24 @@
 
     // 2. Gallery / File upload with Crop, Brightness, & Studio Backdrops
     ov.querySelector("#btnMandatoryGallery").onclick = () => {
+      galleryInp.value = "";
       galleryInp.click();
     };
 
-    galleryInp.onchange = (e) => {
+    galleryInp.onchange = async (e) => {
       const file = e.target.files && e.target.files[0];
       if (!file) return;
-      openPhotoCropModal(file, onPhotoReady);
+      try {
+        openPhotoCropModal(file, onPhotoReady);
+      } catch(err) {
+        console.warn("Crop modal fallback:", err);
+        try {
+          const compressed = await processAndCompressImage(file);
+          onPhotoReady(compressed);
+        } catch(e2) {
+          showToast("Failed to process photo: " + e2.message);
+        }
+      }
     };
 
     // 3. Retake button
@@ -7886,7 +7897,10 @@
       confirmBtn.disabled = true;
       confirmBtn.textContent = "Submitting photo...";
       try {
-        await api.post('/api/student/update-photo', { photo: preparedPhoto });
+        await api.post('/api/student/update-photo', {
+          photo: preparedPhoto,
+          studentId: (currentUser && currentUser.id) || null
+        });
         currentUser.photoRequired = false;
         currentUser.photo = preparedPhoto;
         ov.remove();
