@@ -1598,7 +1598,8 @@
   let authToken = localStorage.getItem('sir_token') || null;
   let selectedDate = new Date();
   let activeTab = "students";
-  let studentViewMode = "today"; // "today" | "all" | "solo" | "group"
+  let studentViewMode = "today";
+  let studentSearchQuery = ""; // "today" | "all" | "solo" | "group"
   let scheduleData = { slots: [], activeBatches: DEFAULT_BATCHES, coachMobile: COACH_PRIMARY_MOBILE, template: DEFAULT_TEMPLATE };
   let studentsData = [];
   let archivedStudentsData = [];
@@ -2402,20 +2403,34 @@
       return;
     }
 
-    // 2. If token exists, verify with 3.5s timeout
+    // 2. If token exists, verify with server (with deploy/restart resilience)
     try {
-      const me = await api.get('/api/auth/me', { timeout: 3500 });
+      const me = await api.get('/api/auth/me', { timeout: 4500 });
       if (me && me.authenticated) {
         currentUser = { role: me.role, status: me.status, ...me.user };
+        if (me.role === 'coach') localStorage.setItem('sir_is_coach', '1');
         await loadDataForRole();
         render();
         initRealtimeSync();
         return;
       }
     } catch (err) {
-      console.warn('Session verification skipped/expired:', err.message);
+      console.warn('Session verification error during startup:', err.message);
+      const isCoach = localStorage.getItem('sir_is_coach') === '1' || (authToken && authToken.startsWith('coach_tima_'));
+      
+      // If Coach is logged in and the server is restarting/deploying, KEEP COACH LOGGED IN!
+      if (isCoach) {
+        currentUser = { role: 'coach', name: 'Thomas Sir', mobile: '9848173025' };
+        localStorage.setItem('sir_is_coach', '1');
+        await loadDataForRole().catch(() => {});
+        render();
+        initRealtimeSync();
+        return;
+      }
+
       authToken = null;
       localStorage.removeItem('sir_token');
+      localStorage.removeItem('sir_is_coach');
     }
 
     renderLoginScreen();
@@ -2686,6 +2701,7 @@
           const res = await api.post('/api/auth/coach/login', { pin });
           authToken = res.token;
           localStorage.setItem('sir_token', authToken);
+          localStorage.setItem('sir_is_coach', '1');
           currentUser = { role: 'coach', ...res.user };
           await loadDataForRole();
           render();
@@ -2967,6 +2983,7 @@
         authToken = null;
         currentUser = null;
         localStorage.removeItem('sir_token');
+        localStorage.removeItem('sir_is_coach');
         showToast("Signed out successfully");
         renderLoginScreen();
       };
@@ -4404,6 +4421,19 @@
     else if (studentViewMode === 'solo') displayedList = soloStudents;
     else if (studentViewMode === 'group') displayedList = distinctGroups;
 
+    // Real-Time Search Filter
+    if (studentSearchQuery && studentSearchQuery.trim()) {
+      const sq = studentSearchQuery.toLowerCase().trim();
+      displayedList = displayedList.filter(s => {
+        const name = (s.name || '').toLowerCase();
+        const mob = (s.mobile || '');
+        const inst = (s.instruments || []).join(' ').toLowerCase();
+        const time = (s.time_slot || s.time || '').toLowerCase();
+        const groupMems = (s.groupMembers || []).map(m => m.name || '').join(' ').toLowerCase();
+        return name.includes(sq) || mob.includes(sq) || inst.includes(sq) || time.includes(sq) || groupMems.includes(sq);
+      });
+    }
+
     let html = `
       <div class="row between" style="margin:16px 0 8px;align-items:center;">
         <h2 style="margin:0;font-size:20px;font-weight:700;">Student Roster</h2>
@@ -4411,6 +4441,15 @@
           <button class="btn ghost sm" id="mergeStudentsBtn" style="border-color:var(--accent);color:var(--accent);font-weight:600;font-size:12px;padding:6px 12px;">🔗 Group</button>
           <button class="btn primary sm" id="addStudentBtn" style="font-size:12px;padding:6px 14px;">+ Enroll</button>
         </div>
+      </div>
+
+            <!-- Real-Time Student Search Bar for Sir -->
+      <div style="margin:10px 0 14px;position:relative;">
+        <input type="text" id="sirStudentSearch" placeholder="🔍 Search student by name, mobile, timing, or instrument..." 
+          value="${escapeHtml(studentSearchQuery)}"
+          style="width:100%;padding:11px 16px 11px 42px;border-radius:14px;border:2px solid var(--accent);background:var(--card-solid);font-size:14px;font-weight:600;box-shadow:0 2px 10px rgba(2,132,199,0.08);outline:none;box-sizing:border-box;transition:border-color 0.2s;" />
+        <span style="position:absolute;left:14px;top:50%;transform:translateY(-50%);font-size:17px;pointer-events:none;">🔍</span>
+        ${studentSearchQuery ? `<button id="clearSirSearch" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;font-size:16px;cursor:pointer;color:var(--muted);padding:4px 8px;">✕</button>` : ''}
       </div>
 
       <!-- Segmented Tabs with Class Timing & Category Order -->
@@ -7553,8 +7592,94 @@
   }
 
   // ---------- STUDENT PORTAL VIEW ----------
-  async function renderStudentView() {
+  async 
+  // ---------- MANDATORY STUDENT PHOTO LOCK MODAL (NO BYPASS) ----------
+  function showMandatoryPhotoLockModal() {
+    const existing = document.getElementById("mandatoryPhotoLockOverlay");
+    if (existing) existing.remove();
+
+    const ov = document.createElement("div");
+    ov.id = "mandatoryPhotoLockOverlay";
+    ov.style.cssText = "position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(11,37,69,0.96);backdrop-filter:blur(10px);z-index:9999999;display:flex;align-items:center;justify-content:center;padding:16px;";
+    ov.innerHTML = `
+      <div class="card" style="max-width:440px;width:100%;text-align:center;padding:26px 20px;border:2.5px solid #F59E0B;box-shadow:0 16px 48px rgba(0,0,0,0.5);border-radius:24px;background:var(--card-solid);color:var(--text);">
+        <div style="width:64px;height:64px;border-radius:50%;background:#FEF3C7;color:#D97706;display:flex;align-items:center;justify-content:center;font-size:32px;margin:0 auto 12px;border:2px solid #F59E0B;">📸</div>
+        <h2 style="margin:0 0 6px;font-size:20px;font-weight:800;color:var(--text);">Photo Update Required</h2>
+        <span class="badge" style="background:#F59E0B;color:#fff;font-weight:700;font-size:11px;padding:3px 10px;margin-bottom:12px;display:inline-block;">Strict Music Sir Directive</span>
+        <p style="font-size:13px;color:var(--muted);line-height:1.5;margin:0 0 14px;">
+          <b>Music Sir (CH. S. D. Thomas)</b> has instructed you to submit a clear, updated photo for academy records. 
+          <br/><b style="color:#DC2626;">Access to student portal features is locked until a valid photo is submitted.</b>
+        </p>
+        ${currentUser.photoInstruction ? `<div style="background:#FEF3C7;color:#92400E;padding:10px 14px;border-radius:12px;font-size:12px;margin-bottom:16px;text-align:left;border-left:4px solid #F59E0B;line-height:1.4;"><b>Note from Music Sir:</b> "${escapeHtml(currentUser.photoInstruction)}"</div>` : ''}
+
+        <div id="mandatoryPreviewWrap" style="display:none;margin-bottom:16px;">
+          <img id="mandatoryPreviewImg" style="width:130px;height:130px;border-radius:50%;object-fit:cover;border:3px solid #10B981;box-shadow:0 4px 16px rgba(16,185,129,0.35);margin:0 auto 12px;display:block;" />
+          <button class="btn good" id="btnConfirmMandatoryPhoto" style="width:100%;padding:12px;font-weight:800;font-size:14px;justify-content:center;border-radius:12px;">✓ Submit Photo &amp; Unlock App</button>
+        </div>
+
+        <div id="mandatoryPickersWrap" style="display:flex;flex-direction:column;gap:10px;">
+          <button class="btn primary" id="btnMandatoryCamera" style="padding:12px;font-weight:700;justify-content:center;font-size:14px;border-radius:12px;">📸 Take Live Camera Photo</button>
+          <button class="btn ghost" id="btnMandatoryGallery" style="padding:11px;font-weight:700;justify-content:center;font-size:13.5px;border-radius:12px;">📁 Choose from Gallery / Files</button>
+          <input type="file" id="mandatoryCameraInp" accept="image/*" capture="user" style="display:none;" />
+          <input type="file" id="mandatoryGalleryInp" accept="image/*" style="display:none;" />
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(ov);
+
+    let preparedPhoto = null;
+    const previewWrap = ov.querySelector("#mandatoryPreviewWrap");
+    const previewImg = ov.querySelector("#mandatoryPreviewImg");
+    const pickersWrap = ov.querySelector("#mandatoryPickersWrap");
+    const cameraInp = ov.querySelector("#mandatoryCameraInp");
+    const galleryInp = ov.querySelector("#mandatoryGalleryInp");
+    const confirmBtn = ov.querySelector("#btnConfirmMandatoryPhoto");
+
+    ov.querySelector("#btnMandatoryCamera").onclick = () => cameraInp.click();
+    ov.querySelector("#btnMandatoryGallery").onclick = () => galleryInp.click();
+
+    const handleFile = async (file) => {
+      if (!file) return;
+      try {
+        showToast("Processing photo...");
+        preparedPhoto = await processImageFile(file);
+        previewImg.src = preparedPhoto;
+        previewWrap.style.display = "block";
+        pickersWrap.style.display = "none";
+      } catch(e) {
+        showToast("Error processing photo: " + e.message);
+      }
+    };
+
+    cameraInp.onchange = (e) => handleFile(e.target.files[0]);
+    galleryInp.onchange = (e) => handleFile(e.target.files[0]);
+
+    confirmBtn.onclick = async () => {
+      if (!preparedPhoto) return;
+      confirmBtn.disabled = true;
+      confirmBtn.textContent = "Uploading photo...";
+      try {
+        await api.post('/api/student/update-photo', { photo: preparedPhoto });
+        currentUser.photoRequired = false;
+        currentUser.photo = preparedPhoto;
+        ov.remove();
+        showToast("🎉 Photo submitted successfully! Welcome back!");
+        await loadDataForRole();
+        renderStudentView();
+      } catch(err) {
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = "✓ Submit Photo & Unlock App";
+        showToast("Failed to update photo: " + err.message);
+      }
+    };
+  }
+
+  function renderStudentView() {
     const main = document.getElementById("main");
+    if (currentUser && currentUser.photoRequired) {
+      showMandatoryPhotoLockModal();
+    }
     if (!currentUser || currentUser.role !== 'student') return;
 
     if (currentUser.status === 'enrolled') {

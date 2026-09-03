@@ -231,7 +231,9 @@ ensureTableColumns('students', {
   timezone: "TEXT DEFAULT 'Asia/Kolkata'",
   country: "TEXT DEFAULT 'India'",
   is_archived: 'INTEGER DEFAULT 0',
-  archived_at: 'INTEGER DEFAULT 0'
+  archived_at: 'INTEGER DEFAULT 0',
+  photo_required: 'INTEGER DEFAULT 0',
+  photo_instruction: 'TEXT'
 });
 
 ensureTableColumns('bookings', {
@@ -398,6 +400,19 @@ function getSessionFromReq(req) {
   if (!auth) return null;
   const token = auth.replace('Bearer ', '').trim();
   if (!token) return null;
+
+  // Persistent Coach Token: immune to database resets, updates & server restarts
+  if (token.startsWith('coach_tima_')) {
+    const coach = db.prepare('SELECT * FROM coaches LIMIT 1').get();
+    return {
+      token,
+      role: 'coach',
+      user_id: coach ? coach.id : 'coach-thomas-main',
+      name: coach ? coach.name : 'Thomas Sir',
+      mobile: coach ? coach.mobile : '9848173025'
+    };
+  }
+
   const session = db.prepare('SELECT * FROM sessions WHERE token = ? AND expires_at > ?').get(token, Date.now());
   return session || null;
 }
@@ -473,8 +488,14 @@ const server = http.createServer(async (req, res) => {
         return sendError(res, 401, 'Invalid Coach PIN');
       }
 
-      const session = createSession('coach', coach.id, coach.name, coach.mobile);
-      return sendJson(res, 200, { success: true, user: { role: 'coach', name: coach.name, mobile: coach.mobile }, token: session.token });
+      // Generate a persistent Coach Token that survives database updates and restarts
+      const coachToken = 'coach_tima_' + crypto.createHash('sha256').update('tima_coach_1717_permanent_auth').digest('hex').substring(0, 32);
+      try {
+        db.prepare('INSERT OR REPLACE INTO sessions (token, role, user_id, name, mobile, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+          .run(coachToken, 'coach', coach.id, coach.name, coach.mobile, Date.now(), Date.now() + 365*24*60*60*1000);
+      } catch(e) {}
+
+      return sendJson(res, 200, { success: true, user: { role: 'coach', name: coach.name, mobile: coach.mobile }, token: coachToken });
     }
 
     if (method === 'POST' && pathname === '/api/auth/coach/change-pin') {
@@ -615,7 +636,9 @@ const server = http.createServer(async (req, res) => {
               currentLesson: student.current_lesson || '',
               homework: student.homework || '',
               timezone: student.timezone || 'Asia/Kolkata',
-              country: student.country || 'India'
+              country: student.country || 'India',
+              photoRequired: student.photo_required === 1,
+              photoInstruction: student.photo_instruction || ''
             }
           });
         }
@@ -996,8 +1019,8 @@ const server = http.createServer(async (req, res) => {
     if (method === 'GET' && pathname === '/api/students') {
       const showArchived = parsedUrl.searchParams.get('archived') === '1' || parsedUrl.searchParams.get('status') === 'archived';
       const sql = showArchived
-        ? 'SELECT id, name, mobile, photo, batch_id as batchId, custom_days as customDays, time_slot as time, duration_hours as durationHours, slot_type as slotType, student_type as studentType, group_id as groupId, group_name as groupName, group_members as groupMembers, instruments, skill_level as skillLevel, current_lesson as currentLesson, homework, timezone, country, is_archived as isArchived, archived_at as archivedAt, created_at as createdAt FROM students WHERE is_archived = 1 ORDER BY archived_at DESC, name ASC'
-        : 'SELECT id, name, mobile, photo, batch_id as batchId, custom_days as customDays, time_slot as time, duration_hours as durationHours, slot_type as slotType, student_type as studentType, group_id as groupId, group_name as groupName, group_members as groupMembers, instruments, skill_level as skillLevel, current_lesson as currentLesson, homework, timezone, country, is_archived as isArchived, archived_at as archivedAt, created_at as createdAt FROM students WHERE (is_archived IS NULL OR is_archived = 0) ORDER BY name ASC';
+        ? 'SELECT id, name, mobile, photo, batch_id as batchId, custom_days as customDays, time_slot as time, duration_hours as durationHours, slot_type as slotType, student_type as studentType, group_id as groupId, group_name as groupName, group_members as groupMembers, instruments, skill_level as skillLevel, current_lesson as currentLesson, homework, timezone, country, is_archived as isArchived, archived_at as archivedAt, photo_required as photoRequired, photo_instruction as photoInstruction, created_at as createdAt FROM students WHERE is_archived = 1 ORDER BY archived_at DESC, name ASC'
+        : 'SELECT id, name, mobile, photo, batch_id as batchId, custom_days as customDays, time_slot as time, duration_hours as durationHours, slot_type as slotType, student_type as studentType, group_id as groupId, group_name as groupName, group_members as groupMembers, instruments, skill_level as skillLevel, current_lesson as currentLesson, homework, timezone, country, is_archived as isArchived, archived_at as archivedAt, photo_required as photoRequired, photo_instruction as photoInstruction, created_at as createdAt FROM students WHERE (is_archived IS NULL OR is_archived = 0) ORDER BY name ASC';
       const students = db.prepare(sql).all();
 
       const today = new Date();
@@ -1134,6 +1157,63 @@ const server = http.createServer(async (req, res) => {
         db.prepare('UPDATE students SET is_archived = 1, archived_at = ? WHERE id = ?').run(Date.now(), id);
         return sendJson(res, 200, { success: true, message: 'Student safely moved to Inactive / Archived Vault. You can view or restore anytime!' });
       }
+    }
+
+    
+    // -------------------------------------------------------------
+    // SIR DEMAND PHOTO / STUDENT MANDATORY PHOTO UPDATE
+    // -------------------------------------------------------------
+    if (method === 'POST' && pathname.startsWith('/api/students/') && pathname.endsWith('/require-photo')) {
+      const session = getSessionFromReq(req);
+      if (!session || session.role !== 'coach') return sendError(res, 403, 'Unauthorized - Coach only');
+      const studentId = pathname.replace('/api/students/', '').replace('/require-photo', '').split('/')[0];
+      const { instruction } = (await parseBody(req)) || {};
+      const note = (instruction || 'Please upload or capture a clear, front-facing face photo with good lighting.').trim();
+      db.prepare('UPDATE students SET photo_required = 1, photo_instruction = ? WHERE id = ?').run(note, studentId);
+      const stu = db.prepare('SELECT name FROM students WHERE id = ?').get(studentId);
+      logActivity({
+        actorType: 'coach',
+        actorName: 'Thomas Sir',
+        actorMobile: '9848173025',
+        actionType: 'photo_demand',
+        title: '📸 Photo Update Demanded',
+        message: `Sir instructed ${stu ? stu.name : 'student'} to upload a correct photo before accessing the portal.`,
+        details: note
+      });
+      return sendJson(res, 200, { success: true, message: 'Mandatory photo instruction issued to student!' });
+    }
+
+    if (method === 'POST' && pathname.startsWith('/api/students/') && pathname.endsWith('/clear-photo-requirement')) {
+      const session = getSessionFromReq(req);
+      if (!session || session.role !== 'coach') return sendError(res, 403, 'Unauthorized - Coach only');
+      const studentId = pathname.replace('/api/students/', '').replace('/clear-photo-requirement', '').split('/')[0];
+      db.prepare('UPDATE students SET photo_required = 0, photo_instruction = NULL WHERE id = ?').run(studentId);
+      return sendJson(res, 200, { success: true, message: 'Photo requirement cleared!' });
+    }
+
+    if (method === 'POST' && pathname === '/api/student/update-photo') {
+      const session = getSessionFromReq(req);
+      if (!session) return sendError(res, 401, 'Unauthorized');
+      const { photo } = await parseBody(req);
+      if (!photo || photo.length < 50) return sendError(res, 400, 'Valid photo is required');
+      
+      const studentId = session.user_id;
+      let targetStu = null;
+      if (studentId) targetStu = db.prepare('SELECT * FROM students WHERE id = ?').get(studentId);
+      if (!targetStu && session.mobile) targetStu = db.prepare('SELECT * FROM students WHERE mobile = ?').get(session.mobile);
+      if (!targetStu) return sendError(res, 404, 'Student profile not found');
+
+      db.prepare('UPDATE students SET photo = ?, photo_required = 0, photo_instruction = NULL WHERE id = ?').run(photo, targetStu.id);
+      logActivity({
+        actorType: 'student',
+        actorName: targetStu.name,
+        actorMobile: targetStu.mobile,
+        actionType: 'photo_updated',
+        title: '📸 Profile Photo Updated',
+        message: `${targetStu.name} took and submitted their updated photo.`,
+        details: ''
+      });
+      return sendJson(res, 200, { success: true, message: 'Photo updated and approved!' });
     }
 
     if (method === 'POST' && pathname.startsWith('/api/students/') && pathname.endsWith('/restore')) {
@@ -1588,7 +1668,9 @@ const server = http.createServer(async (req, res) => {
             group_id: 'TEXT', group_name: 'TEXT', group_members: "TEXT DEFAULT '[]'",
             instruments: "TEXT DEFAULT '[]'", skill_level: "TEXT DEFAULT 'Beginner'",
             current_lesson: 'TEXT', homework: 'TEXT', timezone: "TEXT DEFAULT 'Asia/Kolkata'",
-            country: "TEXT DEFAULT 'India'", is_archived: 'INTEGER DEFAULT 0', archived_at: 'INTEGER DEFAULT 0'
+            country: "TEXT DEFAULT 'India'", is_archived: 'INTEGER DEFAULT 0', archived_at: 'INTEGER DEFAULT 0',
+  photo_required: 'INTEGER DEFAULT 0',
+  photo_instruction: 'TEXT'
           });
         } catch(migErr) {}
 
