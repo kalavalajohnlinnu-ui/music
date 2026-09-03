@@ -1683,7 +1683,7 @@
 
   // ═══════════ INTERACTIVE AVATAR CROP & POSITION ADJUSTER ═══════════
   const openCropModal = (file, cb) => openPhotoCropModal(file, cb);
-  function openPhotoCropModal(file, onCropped) {
+  function openPhotoCropModal(file, onCropped, onCancel) {
     if (!file) return;
 
     const reader = new FileReader();
@@ -1692,7 +1692,7 @@
       const imgSrc = e.target.result;
       const overlay = document.createElement("div");
       overlay.className = "overlay";
-      overlay.style.zIndex = "99999";
+      overlay.style.zIndex = "100000000";
 
       const html = `
         <div class="sheet" style="max-width:440px;text-align:center;padding:20px 18px 24px;">
@@ -1888,7 +1888,7 @@
         isDragging = false;
       });
 
-      overlay.querySelectorAll("[data-close]").forEach(btn => btn.onclick = () => overlay.remove());
+      overlay.querySelectorAll("[data-close]").forEach(btn => btn.onclick = () => { overlay.remove(); if (onCancel) onCancel(); });
 
       confirmBtn.onclick = () => {
         confirmBtn.disabled = true;
@@ -7846,17 +7846,23 @@
     const retakeBtn = ov.querySelector("#btnRetakeMandatoryPhoto");
 
     const onPhotoReady = (base64) => {
+      ov.style.display = "flex";
       if (!base64) return;
       preparedPhoto = base64;
       previewImg.src = base64;
       previewWrap.style.display = "block";
       pickersWrap.style.display = "none";
-      showToast("Photo captured! Tap 'Submit Photo' to unlock.");
+      showToast("Photo ready! Tap 'Submit Photo' to unlock.");
+    };
+
+    const onPhotoCancel = () => {
+      ov.style.display = "flex";
     };
 
     // 1. Live Camera with Screen Flash, Flip, & Studio Photo Editor
     ov.querySelector("#btnMandatoryCamera").onclick = () => {
-      openLiveCameraWithScreenFlashModal(onPhotoReady);
+      ov.style.display = "none";
+      openLiveCameraWithScreenFlashModal(onPhotoReady, onPhotoCancel);
     };
 
     // 2. Gallery / File upload with Crop, Brightness, & Studio Backdrops
@@ -7868,14 +7874,16 @@
     galleryInp.onchange = async (e) => {
       const file = e.target.files && e.target.files[0];
       if (!file) return;
+      ov.style.display = "none";
       try {
-        openPhotoCropModal(file, onPhotoReady);
+        openPhotoCropModal(file, onPhotoReady, onPhotoCancel);
       } catch(err) {
         console.warn("Crop modal fallback:", err);
         try {
           const compressed = await processAndCompressImage(file);
           onPhotoReady(compressed);
         } catch(e2) {
+          ov.style.display = "flex";
           showToast("Failed to process photo: " + e2.message);
         }
       }
