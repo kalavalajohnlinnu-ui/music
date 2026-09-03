@@ -1,5 +1,5 @@
 // Thomas International Music Academy (TIMA) Service Worker
-const CACHE_NAME = 'tima-cache-v5';
+const CACHE_NAME = 'tima-cache-v8';
 const STATIC_ASSETS = [
   '/',
   '/index.html',

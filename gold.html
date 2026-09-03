@@ -7810,7 +7810,7 @@
     ov.style.cssText = "position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(11,37,69,0.96);backdrop-filter:blur(10px);z-index:9999999;display:flex;align-items:center;justify-content:center;padding:16px;";
     ov.innerHTML = `
       <div class="card" style="max-width:440px;width:100%;text-align:center;padding:26px 20px;border:2.5px solid #F59E0B;box-shadow:0 16px 48px rgba(0,0,0,0.5);border-radius:24px;background:var(--card-solid);color:var(--text);">
-        <div style="width:64px;height:64px;border-radius:50%;background:#FEF3C7;color:#D97706;display:flex;align-items:center;justify-content:center;font-size:32px;margin:0 auto 12px;border:2px solid #F59E0B;">📸</div>
+        <div style="width:64px;height:64px;border-radius:50%;background:#FEF3C7;color:#D97706;display:flex;align-items:center;justify-content:center;font-size:32px;margin:0 auto 12px;border:2px solid #F59E0B;">⚠️</div>
         <h2 style="margin:0 0 6px;font-size:20px;font-weight:800;color:var(--text);">Photo Update Required</h2>
         <span class="badge" style="background:#F59E0B;color:#fff;font-weight:700;font-size:11px;padding:3px 10px;margin-bottom:12px;display:inline-block;">Strict Music Sir Directive</span>
         <p style="font-size:13px;color:var(--muted);line-height:1.5;margin:0 0 14px;">
@@ -7821,13 +7821,15 @@
 
         <div id="mandatoryPreviewWrap" style="display:none;margin-bottom:16px;">
           <img id="mandatoryPreviewImg" style="width:130px;height:130px;border-radius:50%;object-fit:cover;border:3px solid #10B981;box-shadow:0 4px 16px rgba(16,185,129,0.35);margin:0 auto 12px;display:block;" />
-          <button class="btn good" id="btnConfirmMandatoryPhoto" style="width:100%;padding:12px;font-weight:800;font-size:14px;justify-content:center;border-radius:12px;">✓ Submit Photo &amp; Unlock App</button>
+          <div style="display:flex;gap:8px;">
+            <button class="btn ghost sm" id="btnRetakeMandatoryPhoto" style="flex:1;justify-content:center;font-weight:700;padding:10px;">🔄 Retake</button>
+            <button class="btn good" id="btnConfirmMandatoryPhoto" style="flex:2;padding:12px;font-weight:800;font-size:14px;justify-content:center;border-radius:12px;">✓ Submit Photo &amp; Unlock App</button>
+          </div>
         </div>
 
         <div id="mandatoryPickersWrap" style="display:flex;flex-direction:column;gap:10px;">
-          <button class="btn primary" id="btnMandatoryCamera" style="padding:12px;font-weight:700;justify-content:center;font-size:14px;border-radius:12px;">📸 Take Live Camera Photo</button>
-          <button class="btn ghost" id="btnMandatoryGallery" style="padding:11px;font-weight:700;justify-content:center;font-size:13.5px;border-radius:12px;">📁 Choose from Gallery / Files</button>
-          <input type="file" id="mandatoryCameraInp" accept="image/*" capture="user" style="display:none;" />
+          <button class="btn primary" id="btnMandatoryCamera" style="padding:13px;font-weight:800;justify-content:center;font-size:14px;border-radius:14px;background:linear-gradient(180deg,#38BDF8 0%,#0284C7 100%);box-shadow:0 4px 14px rgba(2,132,199,0.35);">📸 Take Live Studio Camera Photo</button>
+          <button class="btn ghost" id="btnMandatoryGallery" style="padding:12px;font-weight:700;justify-content:center;font-size:13.5px;border-radius:14px;border:1.5px solid var(--line);">🖼️ Choose from Gallery / Files</button>
           <input type="file" id="mandatoryGalleryInp" accept="image/*" style="display:none;" />
         </div>
       </div>
@@ -7839,45 +7841,62 @@
     const previewWrap = ov.querySelector("#mandatoryPreviewWrap");
     const previewImg = ov.querySelector("#mandatoryPreviewImg");
     const pickersWrap = ov.querySelector("#mandatoryPickersWrap");
-    const cameraInp = ov.querySelector("#mandatoryCameraInp");
     const galleryInp = ov.querySelector("#mandatoryGalleryInp");
     const confirmBtn = ov.querySelector("#btnConfirmMandatoryPhoto");
+    const retakeBtn = ov.querySelector("#btnRetakeMandatoryPhoto");
 
-    ov.querySelector("#btnMandatoryCamera").onclick = () => cameraInp.click();
-    ov.querySelector("#btnMandatoryGallery").onclick = () => galleryInp.click();
-
-    const handleFile = async (file) => {
-      if (!file) return;
-      try {
-        showToast("Processing photo...");
-        preparedPhoto = await processImageFile(file);
-        previewImg.src = preparedPhoto;
-        previewWrap.style.display = "block";
-        pickersWrap.style.display = "none";
-      } catch(e) {
-        showToast("Error processing photo: " + e.message);
-      }
+    const onPhotoReady = (base64) => {
+      if (!base64) return;
+      preparedPhoto = base64;
+      previewImg.src = base64;
+      previewWrap.style.display = "block";
+      pickersWrap.style.display = "none";
+      showToast("Photo captured! Tap 'Submit Photo' to unlock.");
     };
 
-    cameraInp.onchange = (e) => handleFile(e.target.files[0]);
-    galleryInp.onchange = (e) => handleFile(e.target.files[0]);
+    // 1. Live Camera with Screen Flash, Flip, & Studio Photo Editor
+    ov.querySelector("#btnMandatoryCamera").onclick = () => {
+      openLiveCameraWithScreenFlashModal(onPhotoReady);
+    };
 
+    // 2. Gallery / File upload with Crop, Brightness, & Studio Backdrops
+    ov.querySelector("#btnMandatoryGallery").onclick = () => {
+      galleryInp.click();
+    };
+
+    galleryInp.onchange = (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      openPhotoCropModal(file, onPhotoReady);
+    };
+
+    // 3. Retake button
+    retakeBtn.onclick = () => {
+      preparedPhoto = null;
+      previewWrap.style.display = "none";
+      pickersWrap.style.display = "flex";
+    };
+
+    // 4. Submit & Unlock App
     confirmBtn.onclick = async () => {
-      if (!preparedPhoto) return;
+      if (!preparedPhoto) {
+        showToast("Please capture or choose a photo first");
+        return;
+      }
       confirmBtn.disabled = true;
-      confirmBtn.textContent = "Uploading photo...";
+      confirmBtn.textContent = "Submitting photo...";
       try {
         await api.post('/api/student/update-photo', { photo: preparedPhoto });
         currentUser.photoRequired = false;
         currentUser.photo = preparedPhoto;
         ov.remove();
-        showToast("🎉 Photo submitted successfully! Welcome back!");
+        showToast("🎉 Photo updated successfully! App unlocked!");
         await loadDataForRole();
         renderStudentView();
       } catch(err) {
         confirmBtn.disabled = false;
         confirmBtn.textContent = "✓ Submit Photo & Unlock App";
-        showToast("Failed to update photo: " + err.message);
+        showToast("Failed to update photo: " + (err.message || "Try again"));
       }
     };
   }
