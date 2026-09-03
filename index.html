@@ -4482,16 +4482,20 @@
     else if (studentViewMode === 'solo') displayedList = soloStudents;
     else if (studentViewMode === 'group') displayedList = distinctGroups;
 
-    // Real-Time Search Filter
-    if (studentSearchQuery && studentSearchQuery.trim()) {
+    // Real-Time Search Filter (Searches across ALL students regardless of active tab)
+    const isSearching = !!(studentSearchQuery && studentSearchQuery.trim());
+    if (isSearching) {
       const sq = studentSearchQuery.toLowerCase().trim();
-      displayedList = displayedList.filter(s => {
+      displayedList = studentsData.filter(s => {
         const name = (s.name || '').toLowerCase();
         const mob = (s.mobile || '');
         const inst = (s.instruments || []).join(' ').toLowerCase();
         const time = (s.time_slot || s.time || '').toLowerCase();
+        const bObj = batchById(s.batchId);
+        const bName = (bObj ? bObj.name : (s.batchId || '')).toLowerCase();
         const groupMems = (s.groupMembers || []).map(m => m.name || '').join(' ').toLowerCase();
-        return name.includes(sq) || mob.includes(sq) || inst.includes(sq) || time.includes(sq) || groupMems.includes(sq);
+        const groupName = (s.groupName || '').toLowerCase();
+        return name.includes(sq) || mob.includes(sq) || inst.includes(sq) || time.includes(sq) || bName.includes(sq) || groupMems.includes(sq) || groupName.includes(sq);
       });
     }
 
@@ -4514,6 +4518,7 @@
       </div>
 
       <!-- Segmented Tabs with Class Timing & Category Order -->
+      ${isSearching ? `<div style="margin:-4px 0 12px;font-size:12px;font-weight:700;color:var(--accent-deep);display:flex;justify-content:space-between;align-items:center;"><span>🔍 Found <b>${displayedList.length}</b> student(s) matching "${escapeHtml(studentSearchQuery)}"</span><span class="muted" style="font-weight:400;font-size:11px;">Searching entire roster</span></div>` : ""}
       <div class="segmented" style="margin:8px 0 14px;overflow-x:auto;display:flex;gap:4px;">
         <button class="${studentViewMode === 'today' ? 'active' : ''}" data-svm="today">📅 Today (${todayName.slice(0,3)} · ${todayStudents.length})</button>
         <button class="${studentViewMode === 'all' ? 'active' : ''}" data-svm="all">🕒 All (${studentsData.length})</button>
@@ -4659,12 +4664,86 @@
     });
 
     // Tap-to-expand: clicking any student card opens the Apple iOS Frosted Action Sheet
+        // 1. Wire Real-Time Search Bar with Focus & Cursor Retention
+    const searchInp = document.getElementById("sirStudentSearch");
+    if (searchInp) {
+      searchInp.oninput = (e) => {
+        studentSearchQuery = e.target.value;
+        renderStudents(main);
+        const refocused = document.getElementById("sirStudentSearch");
+        if (refocused) {
+          refocused.focus();
+          refocused.setSelectionRange(refocused.value.length, refocused.value.length);
+        }
+      };
+    }
+    const clearBtn = document.getElementById("clearSirSearch");
+    if (clearBtn) {
+      clearBtn.onclick = (e) => {
+        e.stopPropagation();
+        studentSearchQuery = "";
+        renderStudents(main);
+      };
+    }
+
+    // 2. Wire Direct Card Photo Warning Buttons
+    main.querySelectorAll("[data-warn-photo]").forEach(btn => {
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        const sid = btn.getAttribute("data-warn-photo");
+        const sname = btn.getAttribute("data-student-name");
+        promptAndIssuePhotoWarning(sid, sname);
+      };
+    });
+
+    main.querySelectorAll("[data-cancel-photo-warn]").forEach(btn => {
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        const sid = btn.getAttribute("data-cancel-photo-warn");
+        const sname = btn.getAttribute("data-student-name");
+        cancelPhotoWarning(sid, sname);
+      };
+    });
+
     main.querySelectorAll("[data-open-student-id]").forEach(card => {
       card.onclick = (e) => {
         const studentId = card.getAttribute("data-open-student-id");
         openStudentActionSheet(studentId);
       };
     });
+  }
+
+  // ---------- PHOTO WARNING HELPERS FOR SIR ----------
+  async function promptAndIssuePhotoWarning(studentId, studentName, onDone) {
+    const instruction = prompt(
+      `⚠️ Issue Wrong Photo Warning to ${studentName}\n\nWhen issued, this student will be LOCKED OUT from using the portal until they submit a proper face photo.\n\nEnter instruction for student (optional):`,
+      "Please upload a clear, well-lit front-facing face photo. Your current photo was rejected."
+    );
+    if (instruction === null) return;
+    try {
+      showToast("Issuing photo warning...");
+      await api.post(`/api/students/${studentId}/require-photo`, { instruction });
+      showToast(`⚠️ Warning sent to ${studentName}! App locked until photo updated.`);
+      await loadDataForRole();
+      renderCoachTab();
+      if (onDone) onDone();
+    } catch (e) {
+      showToast("Failed to issue warning: " + e.message);
+    }
+  }
+
+  async function cancelPhotoWarning(studentId, studentName, onDone) {
+    if (!confirm(`Cancel photo warning and unlock app access for ${studentName}?`)) return;
+    try {
+      showToast("Canceling warning...");
+      await api.post(`/api/students/${studentId}/clear-photo-requirement`);
+      showToast(`✓ Photo warning canceled for ${studentName}`);
+      await loadDataForRole();
+      renderCoachTab();
+      if (onDone) onDone();
+    } catch (e) {
+      showToast("Failed to cancel warning: " + e.message);
+    }
   }
 
   // ---------- APPLE IOS FROSTED ACTION SHEET FOR INDIVIDUAL STUDENT ----------
@@ -4735,6 +4814,25 @@
         <div class="muted" style="font-size:11.5px;">${att.present} of ${att.conducted} classes attended this month (${att.totalScheduled || 12} total scheduled).</div>
       </div>
 
+      <!-- Photo Verification & Warning Box -->
+      <div style="background:rgba(245,158,11,0.08);border:1.5px solid #F59E0B;border-radius:12px;padding:12px;margin-bottom:12px;text-align:left;">
+        <div style="font-weight:800;font-size:13px;color:#92400E;margin-bottom:4px;display:flex;align-items:center;gap:6px;">
+          ⚠️ Student Photo Verification &amp; Warning
+        </div>
+        <div style="font-size:11.5px;color:#78350F;margin-bottom:8px;line-height:1.4;">
+          If this student uploaded a wrong, improper, or blurry photo, tap below. The student will be locked out until they submit a proper face photo.
+        </div>
+        ${s.photoRequired ? `
+          <button class="btn warn block" id="sheetBtnCancelPhotoWarning" style="padding:10px;font-weight:800;justify-content:center;background:#FEF3C7;border-color:#F59E0B;color:#B45309;">
+            ⚠️ Photo Warning Active (Tap to Cancel Lock)
+          </button>
+        ` : `
+          <button class="btn warn block" id="sheetBtnSendPhotoWarning" style="padding:10px;font-weight:800;justify-content:center;background:linear-gradient(180deg,#F59E0B 0%,#D97706 100%);color:#fff;border:none;box-shadow:0 2px 8px rgba(217,119,6,0.3);">
+            ⚠️ Issue Wrong Photo Warning &amp; Lock App
+          </button>
+        `}
+      </div>
+
       <!-- Full Management Action List -->
       <div style="display:flex;flex-direction:column;gap:8px;">
         <button class="btn good block" id="sheetBtnMarkAtt">📅 Mark / View Attendance</button>
@@ -4753,6 +4851,19 @@
         const msg = `Hi ${s.name} 🎵 This is Thomas Sir from Thomas International Music Academy.`;
         window.open(waLink(s.mobile, msg), "_blank");
       };
+
+      const warnBtn = ov.querySelector("#sheetBtnSendPhotoWarning");
+      if (warnBtn) {
+        warnBtn.onclick = () => {
+          promptAndIssuePhotoWarning(s.id, s.name, () => ov.remove());
+        };
+      }
+      const cancelWarnBtn = ov.querySelector("#sheetBtnCancelPhotoWarning");
+      if (cancelWarnBtn) {
+        cancelWarnBtn.onclick = () => {
+          cancelPhotoWarning(s.id, s.name, () => ov.remove());
+        };
+      }
 
       ov.querySelector("#sheetBtnMarkAtt").onclick = () => {
         ov.remove();
