@@ -3693,7 +3693,7 @@
     const todayKey = dateKey(today);
     const nowMinutes = today.getHours() * 60 + today.getMinutes();
 
-    if (currentRole === 'coach') {
+    if (currentUser && currentUser.role === 'coach') {
       if (!scheduleData || !scheduleData.slots) return;
       const curSelectedKey = dateKey(selectedDate);
       if (curSelectedKey !== todayKey) return;
@@ -3726,7 +3726,7 @@
           break;
         }
       }
-    } else if (currentRole === 'student' && currentUser && currentUser.status === 'active') {
+    } else if (currentUser && currentUser.role === 'student' && currentUser && currentUser.status === 'active') {
       const b = batchById(currentUser.batchId);
       const isTodayBatch = b && b.days && b.days.includes(today.getDay());
       if (!isTodayBatch) return;
@@ -7653,7 +7653,6 @@
   }
 
   // ---------- STUDENT PORTAL VIEW ----------
-  async 
   // ---------- MANDATORY STUDENT PHOTO LOCK MODAL (NO BYPASS) ----------
   function showMandatoryPhotoLockModal() {
     const existing = document.getElementById("mandatoryPhotoLockOverlay");
