@@ -3849,10 +3849,24 @@
     } catch(e) {}
   }
 
-  function startAlarmSound(forceManual = false) {
-    if (!forceManual) return; // Prevent automatic background alarm playback
+  function startAlarmSound() {
     isAlarmRinging = true;
-    const audio = getAlarmAudio();
+    try {
+      const audio = getAlarmAudio();
+      audio.currentTime = 0;
+      audio.volume = 1.0;
+      audio.play().catch(e => {
+        console.log("Audio autoplay waiting for user interaction:", e.message);
+        playSynthAlarmBeep();
+        if (!alarmSynthInterval) {
+          alarmSynthInterval = setInterval(() => {
+            if (isAlarmRinging) playSynthAlarmBeep();
+          }, 1000);
+        }
+      });
+    } catch(e) {
+      playSynthAlarmBeep();
+    }
     audio.play().catch(e => {
       console.log("Audio autoplay waiting for user interaction:", e.message);
       playSynthAlarmBeep();
@@ -3879,219 +3893,137 @@
   }
 
   function checkAttendanceAlarm() {
+    // ═════════════════════════════════════════════════════════════════
+    // STRICT RULE: ALARMS ARE EXCLUSIVELY FOR STUDENTS!
+    // Music Teacher (Sir) NEVER receives alarm audio or interruptions!
+    // ═════════════════════════════════════════════════════════════════
+    if (!currentUser || currentUser.role !== 'student') return;
     if (isAlarmRinging) return;
+
     const today = new Date();
     const todayKey = dateKey(today);
     const nowMinutes = today.getHours() * 60 + today.getMinutes();
 
-    if (currentUser && currentUser.role === 'coach') {
-      if (!scheduleData || !scheduleData.slots) return;
-      const curSelectedKey = dateKey(selectedDate);
-      if (curSelectedKey !== todayKey) return;
+    const b = batchById(currentUser.batchId);
+    const isTodayBatch = b && b.days && b.days.includes(today.getDay());
+    if (!isTodayBatch) return;
 
-      for (const slot of scheduleData.slots) {
-        if (slot.free || slot.isPrimary === false) continue;
-        const [sh, sm] = (slot.slotTime || '00:00').split(':').map(Number);
-        const slotStartMins = sh * 60 + sm;
-        const dur = slot.durationHours || 1;
-        const slotEndMins = slotStartMins + (dur * 60);
+    const [sh, sm] = (currentUser.time || '00:00').split(':').map(Number);
+    const slotStartMins = sh * 60 + sm;
+    const dur = currentUser.durationHours || 1;
+    const slotEndMins = slotStartMins + (dur * 60);
 
-        const isSlotTimeNow = (nowMinutes >= slotStartMins && nowMinutes < slotEndMins);
-        const alarmKey = `${todayKey}_${slot.id}_${slot.slotTime}`;
-        const isUnmarked = (!slot.status || (slot.status !== 'present' && slot.status !== 'absent' && slot.status !== 'partial'));
+    const isSlotTimeNow = (nowMinutes >= slotStartMins && nowMinutes < slotEndMins);
+    const alarmKey = `${todayKey}_student_${currentUser.id || currentUser.mobile}_${currentUser.time}`;
 
-        if (isSlotTimeNow && isUnmarked && !dismissedSlotAlarms.has(alarmKey)) {
-          triggerSlotAlarm({
-            role: 'coach',
-            alarmKey,
-            studentId: slot.id,
-            name: slot.name,
-            mobile: slot.mobile,
-            time: slot.slotTime,
-            durationHours: dur,
-            slotType: slot.slotType,
-            groupMembers: slot.groupMembers,
-            instruments: slot.instruments,
-            dateStr: todayKey
-          });
-          break;
-        }
-      }
-    } else if (currentUser && currentUser.role === 'student' && currentUser && currentUser.status === 'active') {
-      const b = batchById(currentUser.batchId);
-      const isTodayBatch = b && b.days && b.days.includes(today.getDay());
-      if (!isTodayBatch) return;
+    // Check if student already dismissed or reacted to this alarm today
+    if (localStorage.getItem('tima_alarm_dismissed_' + alarmKey) === '1' || dismissedSlotAlarms.has(alarmKey)) {
+      return;
+    }
 
-      const [sh, sm] = (currentUser.time || '00:00').split(':').map(Number);
-      const slotStartMins = sh * 60 + sm;
-      const dur = currentUser.durationHours || 1;
-      const slotEndMins = slotStartMins + (dur * 60);
+    const todayAtt = (attStatuses && attStatuses[todayKey]);
+    const isUnmarked = (!todayAtt || (todayAtt !== 'present' && todayAtt !== 'absent' && todayAtt !== 'partial'));
 
-      const isSlotTimeNow = (nowMinutes >= slotStartMins && nowMinutes < slotEndMins);
-      const alarmKey = `${todayKey}_student_${currentUser.id}_${currentUser.time}`;
-      const todayAtt = attStatuses[todayKey];
-      const isUnmarked = (!todayAtt || (todayAtt !== 'present' && todayAtt !== 'absent' && todayAtt !== 'partial'));
-
-      if (isSlotTimeNow && isUnmarked && !dismissedSlotAlarms.has(alarmKey)) {
-        triggerSlotAlarm({
-          role: 'student',
-          alarmKey,
-          studentId: currentUser.id,
-          name: currentUser.name,
-          mobile: currentUser.mobile,
-          time: currentUser.time,
-          durationHours: dur,
-          slotType: currentUser.slotType,
-          groupMembers: currentUser.groupMembers,
-          dateStr: todayKey
-        });
-      }
+    if (isSlotTimeNow && isUnmarked) {
+      triggerStudentClassAlarm({
+        role: 'student',
+        alarmKey,
+        studentId: currentUser.id,
+        name: currentUser.name,
+        mobile: currentUser.mobile,
+        time: currentUser.time,
+        durationHours: dur,
+        slotType: currentUser.slotType,
+        groupMembers: currentUser.groupMembers,
+        dateStr: todayKey
+      });
     }
   }
 
-  function triggerSlotAlarm(data) {
+  function triggerStudentClassAlarm(data) {
     activeAlarmData = data;
-    // Automatic audio permanently silenced per Sir directive
-    // Visual banner modal only, no audio blaring
+    startAlarmSound(); // Rings audio for student
 
-    const isGroup = data.slotType && data.slotType !== 'solo';
     const existing = document.getElementById("activeAlarmModalOverlay");
     if (existing) existing.remove();
 
     const overlay = document.createElement("div");
     overlay.className = "sheet-overlay open";
     overlay.id = "activeAlarmModalOverlay";
-    overlay.style.zIndex = "999999";
-    overlay.style.background = "rgba(0,0,0,0.75)";
+    overlay.style.zIndex = "99999999";
+    overlay.style.background = "rgba(11,37,69,0.92)";
+    overlay.style.backdropFilter = "blur(12px)";
 
     overlay.innerHTML = `
-      <div class="sheet alarm-container" style="max-width:440px;margin:auto;text-align:center;padding:24px 20px;border-radius:20px;border:2.5px solid var(--bad);background:#0E1528;box-shadow:0 12px 40px rgba(239,68,68,0.35);color:#FFFFFF;">
-        <div class="alarm-bell-icon">🔔</div>
-        <h2 style="font-size:22px;color:var(--bad);margin:8px 0 4px;font-family:'Cinzel',serif;">⏰ Class Time Starting Now!</h2>
-        <div style="font-size:13px;color:var(--text-secondary);margin-bottom:14px;font-weight:600;">
-          Attendance has not been recorded yet for this slot.
+      <div class="sheet alarm-container" style="max-width:440px;margin:auto;text-align:center;padding:26px 20px;border-radius:24px;border:3px solid #0EA5E9;background:#FFFFFF;box-shadow:0 16px 50px rgba(14,165,233,0.35);color:#0B2545;">
+        <div style="width:72px;height:72px;border-radius:50%;background:#E0F2FE;color:#0284C7;display:flex;align-items:center;justify-content:center;font-size:36px;margin:0 auto 12px;border:2.5px solid #0284C7;box-shadow:0 4px 16px rgba(2,132,199,0.25);">🔔</div>
+        <h2 style="font-size:22px;color:#0369A1;margin:4px 0 6px;font-weight:800;">⏰ Your Music Class is Starting Now!</h2>
+        <div style="font-size:13px;color:#5B7A9C;margin-bottom:14px;font-weight:600;line-height:1.45;">
+          Thomas International Music Academy · <b>CH. S. D. Thomas Sir</b>
         </div>
 
-        <div style="background:rgba(255,255,255,0.06);border:1.5px solid var(--bad);border-radius:14px;padding:14px;margin-bottom:16px;text-align:left;color:#FFFFFF;">
-          <div style="font-weight:700;font-size:16px;color:#FFFFFF;">${escapeHtml(data.name)}</div>
-          <div style="font-size:13.5px;color:var(--accent);font-weight:600;margin-top:3px;">
-            ⏱️ Class Slot: ${fmtTimeRange(data.time, data.durationHours)} ${isGroup ? '· 👥 Group Class' : '· 👤 Solo Class'}
+        <div style="background:#F0F9FF;border:1.5px solid #38BDF8;border-radius:16px;padding:14px;margin-bottom:16px;text-align:left;">
+          <div style="font-weight:800;font-size:16px;color:#0B2545;">🎵 Hello, ${escapeHtml(data.name || 'Student')}!</div>
+          <div style="font-size:13px;color:#0284C7;font-weight:700;margin-top:4px;">
+            ⏱️ Class Slot: <b>${fmtTimeRange(data.time, data.durationHours || 1)}</b>
           </div>
-          ${(data.instruments && data.instruments.length) ? `
-            <div style="font-size:12px;color:var(--muted);margin-top:4px;">
-              🎼 ${data.instruments.join(', ')}
-            </div>` : ''}
+          <div style="font-size:11.5px;color:#5B7A9C;margin-top:4px;">
+            Please check in below so Sir knows you are ready for your session!
+          </div>
         </div>
 
-        <div class="muted" style="font-size:12px;margin-bottom:14px;">
-          🔊 <i>Alarm is ringing. It will automatically stop once attendance is marked!</i>
+        <div class="row gap8" style="margin-bottom:12px;display:flex;gap:8px;">
+          <button class="btn good block" id="btnAlarmStudentAttending" style="flex:1.4;justify-content:center;padding:14px;font-size:14px;font-weight:800;border-radius:12px;background:linear-gradient(180deg,#10B981 0%,#059669 100%);color:#fff;border:none;box-shadow:0 4px 12px rgba(16,185,129,0.35);">
+            ✓ I am Present / Joining
+          </button>
+          <button class="btn warn block" id="btnAlarmStudentAbsent" style="flex:1;justify-content:center;padding:14px;font-size:13px;font-weight:700;border-radius:12px;background:#FEE2E2;border:1.5px solid #EF4444;color:#B91C1C;">
+            ✕ Can't Make It
+          </button>
         </div>
 
-        ${data.role === 'coach' ? `
-          <div class="row gap8" style="margin-bottom:10px;">
-            <button class="btn good block" id="btnAlarmMarkPres" style="flex:1;justify-content:center;padding:14px;font-size:14px;font-weight:700;">✓ Mark Present</button>
-            <button class="btn warn block" id="btnAlarmMarkAbs" style="flex:1;justify-content:center;padding:14px;font-size:14px;font-weight:700;">✕ Mark Absent</button>
-          </div>
-          ${isGroup ? `
-            <button class="btn primary block" id="btnAlarmMarkGroup" style="margin-bottom:10px;">👥 Mark Sibling Attendance</button>
-          ` : ''}
-        ` : `
-          <div class="row gap8" style="margin-bottom:10px;">
-            <button class="btn good block" id="btnAlarmStudentAttending" style="flex:1;justify-content:center;padding:14px;font-size:14px;font-weight:700;">✓ I am Attending</button>
-            <button class="btn warn block" id="btnAlarmStudentAbsent" style="flex:1;justify-content:center;padding:14px;font-size:14px;font-weight:700;">✕ Can't Make It (Absent)</button>
-          </div>
-        `}
-
-        <button class="btn ghost block" id="btnAlarmDismiss" style="font-size:12.5px;padding:9px;color:var(--muted);">🔇 Mute &amp; Dismiss Alarm</button>
+        <button class="btn ghost block" id="btnAlarmDismiss" style="width:100%;font-size:12.5px;padding:10px;color:#5B7A9C;border-radius:10px;font-weight:700;">
+          🔇 Stop Alarm &amp; Dismiss
+        </button>
       </div>`;
 
     document.body.appendChild(overlay);
 
-    const dismissBtn = overlay.querySelector("#btnAlarmDismiss");
-    if (dismissBtn) {
-      dismissBtn.onclick = () => {
-        dismissedSlotAlarms.add(data.alarmKey);
-        stopAlarmSound();
-        showToast("Alarm muted");
-      };
-    }
+    const stopAlarmInstantly = () => {
+      stopAlarmSound();
+      dismissedSlotAlarms.add(data.alarmKey);
+      localStorage.setItem('tima_alarm_dismissed_' + data.alarmKey, '1');
+      if (overlay) overlay.remove();
+    };
 
-    if (data.role === 'coach') {
-      const presBtn = overlay.querySelector("#btnAlarmMarkPres");
-      const absBtn = overlay.querySelector("#btnAlarmMarkAbs");
-      const grpBtn = overlay.querySelector("#btnAlarmMarkGroup");
+    // React Option 1: I am Present -> Stop Audio Immediately!
+    overlay.querySelector("#btnAlarmStudentAttending").onclick = async () => {
+      stopAlarmInstantly();
+      showToast("✓ Attendance recorded: Present! Have a wonderful class!");
+      try {
+        await api.post('/api/attendance', { date: data.dateStr, studentId: data.studentId, status: 'present' });
+        renderStudentView();
+      } catch (e) {}
+    };
 
-      if (presBtn) {
-        presBtn.onclick = async () => {
-          try {
-            await api.post('/api/attendance', { date: data.dateStr, studentId: data.studentId, status: 'present' });
-            dismissedSlotAlarms.add(data.alarmKey);
-            stopAlarmSound();
-            showToast(`✓ Marked Present for ${data.name}`);
-            await refreshSchedule();
-          } catch (e) {
-            showToast("Error updating attendance");
-          }
-        };
-      }
+    // React Option 2: Can't Make It -> Stop Audio Immediately!
+    overlay.querySelector("#btnAlarmStudentAbsent").onclick = async () => {
+      stopAlarmInstantly();
+      showToast("Absence noted. Thomas Sir has been notified.");
+      try {
+        await api.post('/api/attendance', { date: data.dateStr, studentId: data.studentId, status: 'absent' });
+        renderStudentView();
+      } catch (e) {}
+    };
 
-      if (absBtn) {
-        absBtn.onclick = async () => {
-          try {
-            await api.post('/api/attendance', { date: data.dateStr, studentId: data.studentId, status: 'absent' });
-            dismissedSlotAlarms.add(data.alarmKey);
-            stopAlarmSound();
-            showToast(`✕ Marked Absent for ${data.name}`);
-            await refreshSchedule();
-          } catch (e) {
-            showToast("Error updating attendance");
-          }
-        };
-      }
-
-      if (grpBtn) {
-        grpBtn.onclick = () => {
-          dismissedSlotAlarms.add(data.alarmKey);
-          stopAlarmSound();
-          openGroupAttendanceSheet(data, data.dateStr);
-        };
-      }
-    } else {
-      const attBtn = overlay.querySelector("#btnAlarmStudentAttending");
-      const absBtn = overlay.querySelector("#btnAlarmStudentAbsent");
-
-      if (attBtn) {
-        attBtn.onclick = async () => {
-          try {
-            await api.post('/api/attendance', { date: data.dateStr, studentId: data.studentId, status: 'present' });
-            dismissedSlotAlarms.add(data.alarmKey);
-            stopAlarmSound();
-            showToast("✓ Marked Attending! Have a great class.");
-            renderStudentView();
-          } catch (e) {
-            showToast("Error updating status");
-          }
-        };
-      }
-
-      if (absBtn) {
-        absBtn.onclick = async () => {
-          try {
-            await api.post('/api/attendance', { date: data.dateStr, studentId: data.studentId, status: 'absent' });
-            dismissedSlotAlarms.add(data.alarmKey);
-            stopAlarmSound();
-            showToast("Coach notified of absence.");
-            renderStudentView();
-          } catch (e) {
-            showToast("Error updating status");
-          }
-        };
-      }
-    }
+    // React Option 3: Stop Alarm & Dismiss -> Stop Audio Immediately!
+    overlay.querySelector("#btnAlarmDismiss").onclick = () => {
+      stopAlarmInstantly();
+      showToast("Alarm silenced.");
+    };
   }
 
-  // Automatic background alarm audio disabled per Sir instruction
-  // setInterval(checkAttendanceAlarm, 10000);
+  // Periodic check for student class time (runs every 15s)
+  setInterval(checkAttendanceAlarm, 15000);
 
   // ---------- SIBLING GROUP INDIVIDUAL ATTENDANCE MODAL ----------
   function openGroupAttendanceSheet(item, dateStr) {
