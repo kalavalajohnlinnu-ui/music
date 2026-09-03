@@ -2257,17 +2257,18 @@
     }
 
     // 1. Extreme Card Entry Ingress with Elastic Back Physics
-    const animCards = root.querySelectorAll('.slot, .student-row, .card, .stat-box, .batchcard, .section-title, .history-item, .member-att-row, .badge');
+    // Prevent repetitive flickering & bouncing on re-renders
+    const animCards = root.querySelectorAll('.slot:not(.anim-done), .student-row:not(.anim-done), .batchcard:not(.anim-done)');
     if (animCards.length > 0) {
+      animCards.forEach(c => c.classList.add('anim-done'));
       gsap.fromTo(animCards, 
-        { opacity: 0, y: 20, scale: 0.97 },
+        { opacity: 0.85, y: 8 },
         {
           opacity: 1,
           y: 0,
-          scale: 1,
-          duration: 0.42,
-          stagger: 0.03,
-          ease: 'back.out(1.3)',
+          duration: 0.25,
+          stagger: 0.02,
+          ease: 'power2.out',
           overwrite: 'auto'
         }
       );
@@ -2596,7 +2597,7 @@
         if (res && res.hasChanges) {
           lastSyncTimestamp = res.timestamp;
           await loadDataForRole();
-          render();
+          renderCoachTab();
         }
       } catch (e) {}
     }, 4000);
@@ -2914,9 +2915,11 @@
           localStorage.setItem('sir_token', authToken);
           localStorage.setItem('sir_is_coach', '1');
           currentUser = { role: 'coach', ...res.user };
-          await loadDataForRole();
+          // INSTANT RENDER: Render Sir Portal immediately in 0.1s without waiting!
           render();
           showToast("Welcome CH. S. D. Thomas Sir! 🎵");
+          // Refresh fresh data smoothly in parallel
+          loadDataForRole().then(() => renderCoachTab()).catch(() => {});
         } catch (err) {
           showToast(err.message || "Incorrect PIN");
           submitBtn.disabled = false;
@@ -2983,9 +2986,10 @@
           authToken = res.token;
           localStorage.setItem('sir_token', authToken);
           currentUser = { role: 'student', status: res.status, ...res.user };
-          await loadDataForRole();
+          // INSTANT RENDER: Show dashboard immediately in 0.1s
           render();
           showToast(`Welcome ${currentUser.name || 'to Thomas International Music Academy'}!`);
+          loadDataForRole().then(() => renderStudentView()).catch(() => {});
         } catch (err) {
           showToast(err.message || "Login failed");
           submitBtn.disabled = false;
@@ -3845,7 +3849,8 @@
     } catch(e) {}
   }
 
-  function startAlarmSound() {
+  function startAlarmSound(forceManual = false) {
+    if (!forceManual) return; // Prevent automatic background alarm playback
     isAlarmRinging = true;
     const audio = getAlarmAudio();
     audio.play().catch(e => {
@@ -3946,7 +3951,8 @@
 
   function triggerSlotAlarm(data) {
     activeAlarmData = data;
-    startAlarmSound();
+    // Automatic audio permanently silenced per Sir directive
+    // Visual banner modal only, no audio blaring
 
     const isGroup = data.slotType && data.slotType !== 'solo';
     const existing = document.getElementById("activeAlarmModalOverlay");
@@ -4084,7 +4090,8 @@
     }
   }
 
-  setInterval(checkAttendanceAlarm, 10000);
+  // Automatic background alarm audio disabled per Sir instruction
+  // setInterval(checkAttendanceAlarm, 10000);
 
   // ---------- SIBLING GROUP INDIVIDUAL ATTENDANCE MODAL ----------
   function openGroupAttendanceSheet(item, dateStr) {
