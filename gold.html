@@ -3080,17 +3080,31 @@
               <svg class="ic" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" style="margin:0 auto 1px;"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
               Schedule
             </button>
-            <button data-tab="requests" class="${activeTab === 'requests' ? 'active' : ''}">
-              <svg class="ic" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" style="margin:0 auto 1px;"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"></polyline><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path></svg>
-              Requests${pendingCount > 0 ? '<span class="dot"></span>' : ''}
+            <button data-tab="requests" class="${activeTab === 'requests' ? 'active' : ''}" style="position:relative;">
+              <div style="position:relative;display:inline-block;width:24px;height:24px;margin:0 auto 2px;">
+                <svg class="ic" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" style="margin:0 auto;"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"></polyline><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path></svg>
+                ${pendingCount > 0 ? `
+                  <span class="req-badge-counter" style="position:absolute;top:-6px;right:-12px;background:#EF4444;color:#FFFFFF;font-size:10px;font-weight:900;border-radius:12px;min-width:18px;height:18px;padding:0 5px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(239,68,68,0.5);border:1.5px solid #FFFFFF;line-height:1;box-sizing:border-box;">
+                    ${pendingCount > 99 ? '99+' : pendingCount}
+                  </span>
+                ` : ''}
+              </div>
+              Requests
             </button>
             <button data-tab="students" class="${activeTab === 'students' ? 'active' : ''}">
               <svg class="ic" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" style="margin:0 auto 1px;"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
               Students
             </button>
-            <button data-tab="activity" class="${activeTab === 'activity' ? 'active' : ''}">
-              <svg class="ic" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" style="margin:0 auto 1px;"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
-              Activity${unreadActivityCount > 0 ? '<span class="dot"></span>' : ''}
+            <button data-tab="activity" class="${activeTab === 'activity' ? 'active' : ''}" style="position:relative;">
+              <div style="position:relative;display:inline-block;width:24px;height:24px;margin:0 auto 2px;">
+                <svg class="ic" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" style="margin:0 auto;"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+                ${unreadActivityCount > 0 ? `
+                  <span class="act-badge-counter" style="position:absolute;top:-6px;right:-12px;background:#0284C7;color:#FFFFFF;font-size:10px;font-weight:900;border-radius:12px;min-width:18px;height:18px;padding:0 5px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(2,132,199,0.5);border:1.5px solid #FFFFFF;line-height:1;box-sizing:border-box;">
+                    ${unreadActivityCount > 99 ? '99+' : unreadActivityCount}
+                  </span>
+                ` : ''}
+              </div>
+              Activity
             </button>
             <button data-tab="settings" class="${activeTab === 'settings' ? 'active' : ''}">
               <svg class="ic" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" style="margin:0 auto 1px;"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
@@ -3144,6 +3158,27 @@
 
   function renderCoachTab() {
     const main = document.getElementById("main");
+    // Live Bottom Navigation Badge Synchronizer
+    const reqTabBtn = document.querySelector('nav.bottom button[data-tab="requests"]');
+    if (reqTabBtn) {
+      const livePending = (requestsData || []).filter(r => r.status === 'pending').length;
+      let bEl = reqTabBtn.querySelector(".req-badge-counter");
+      if (livePending > 0) {
+        if (!bEl) {
+          const wrapEl = reqTabBtn.querySelector("div") || reqTabBtn;
+          bEl = document.createElement("span");
+          bEl.className = "req-badge-counter";
+          bEl.style.cssText = "position:absolute;top:-6px;right:-12px;background:#EF4444;color:#FFFFFF;font-size:10px;font-weight:900;border-radius:12px;min-width:18px;height:18px;padding:0 5px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(239,68,68,0.5);border:1.5px solid #FFFFFF;line-height:1;box-sizing:border-box;";
+          wrapEl.style.position = "relative";
+          wrapEl.appendChild(bEl);
+        }
+        bEl.textContent = livePending > 99 ? '99+' : livePending;
+        bEl.style.display = "flex";
+      } else if (bEl) {
+        bEl.style.display = "none";
+      }
+    }
+
     const eqBar = document.getElementById("eqBar");
     if (eqBar && scheduleData && scheduleData.slots) {
       eqBar.innerHTML = scheduleData.slots.map(it => {
