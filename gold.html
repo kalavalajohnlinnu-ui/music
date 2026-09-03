@@ -1711,12 +1711,32 @@
           </div>
 
           <!-- Zoom & Center Controls -->
-          <div style="background:var(--bg-deep);padding:10px 14px;border-radius:12px;border:1px solid var(--line);margin-bottom:16px;">
+          <div style="background:var(--bg-deep);padding:10px 14px;border-radius:12px;border:1px solid var(--line);margin-bottom:12px;">
             <div class="row between" style="margin-bottom:6px;align-items:center;">
               <span style="font-size:12px;font-weight:700;color:var(--text);">🔍 Zoom: <b id="cropZoomVal" style="color:var(--accent);">1.0x</b></span>
               <button class="btn ghost sm" id="cropResetBtn" style="padding:4px 10px;font-size:11px;border-color:var(--accent);color:var(--accent-deep);">🎯 Reset Center</button>
             </div>
             <input type="range" id="cropZoomRange" min="1.0" max="3.0" step="0.05" value="1.0" style="width:100%;accent-color:var(--accent);cursor:pointer;" />
+          </div>
+
+          <!-- Live Brightness Slider -->
+          <div style="background:var(--bg-deep);padding:10px 14px;border-radius:12px;border:1px solid var(--line);margin-bottom:12px;">
+            <div class="row between" style="margin-bottom:6px;align-items:center;">
+              <span style="font-size:12px;font-weight:700;color:var(--text);">☀️ Brightness: <b id="cropBrightVal" style="color:var(--accent);">100%</b></span>
+              <button class="btn ghost sm" id="cropResetBrightBtn" style="padding:2px 8px;font-size:11px;border-color:var(--accent);color:var(--accent-deep);">Reset</button>
+            </div>
+            <input type="range" id="cropBrightRange" min="50" max="180" step="5" value="100" style="width:100%;accent-color:var(--accent);cursor:pointer;" />
+          </div>
+
+          <!-- Studio Backdrop Selector -->
+          <div style="background:var(--bg-deep);padding:10px 14px;border-radius:12px;border:1px solid var(--line);margin-bottom:14px;text-align:left;">
+            <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:6px;">✨ Studio Background:</div>
+            <div style="display:flex;gap:6px;overflow-x:auto;">
+              <button class="btn ghost sm active bg-picker-btn" data-bg-type="original" style="font-size:11px;padding:4px 8px;">Original</button>
+              <button class="btn ghost sm bg-picker-btn" data-bg-type="studio_blue" style="font-size:11px;padding:4px 8px;border-color:#0284C7;color:#0284C7;">✨ Royal Blue</button>
+              <button class="btn ghost sm bg-picker-btn" data-bg-type="studio_ivory" style="font-size:11px;padding:4px 8px;border-color:#D97706;color:#D97706;">🏛️ Ivory Studio</button>
+              <button class="btn ghost sm bg-picker-btn" data-bg-type="studio_dark" style="font-size:11px;padding:4px 8px;border-color:#475569;color:#475569;">🖤 Dark</button>
+            </div>
           </div>
 
           <!-- Action Buttons -->
@@ -1738,6 +1758,8 @@
       const confirmBtn = overlay.querySelector("#cropConfirmBtn");
 
       let currentScale = 1.0;
+      let currentBrightness = 100;
+      let selectedBgType = "original";
       let panX = 0;
       let panY = 0;
       let isDragging = false;
@@ -1750,6 +1772,7 @@
 
       const updateTransform = () => {
         img.style.transform = `translate(calc(-50% + ${panX}px), calc(-50% + ${panY}px)) scale(${currentScale})`;
+        img.style.filter = `brightness(${currentBrightness}%)`;
       };
 
       img.onload = () => {
@@ -1782,6 +1805,43 @@
         zoomVal.textContent = "1.0x";
         updateTransform();
       };
+
+      const brightRange = overlay.querySelector("#cropBrightRange");
+      const brightVal = overlay.querySelector("#cropBrightVal");
+      const resetBrightBtn = overlay.querySelector("#cropResetBrightBtn");
+
+      if (brightRange) {
+        brightRange.oninput = () => {
+          currentBrightness = parseInt(brightRange.value);
+          brightVal.textContent = currentBrightness + '%';
+          updateTransform();
+        };
+      }
+      if (resetBrightBtn) {
+        resetBrightBtn.onclick = () => {
+          currentBrightness = 100;
+          if (brightRange) brightRange.value = "100";
+          if (brightVal) brightVal.textContent = "100%";
+          updateTransform();
+        };
+      }
+
+      overlay.querySelectorAll(".bg-picker-btn").forEach(btn => {
+        btn.onclick = () => {
+          overlay.querySelectorAll(".bg-picker-btn").forEach(b => b.classList.remove("active"));
+          btn.classList.add("active");
+          selectedBgType = btn.getAttribute("data-bg-type");
+          if (selectedBgType === 'studio_blue') {
+            vp.style.background = "radial-gradient(circle, #0284C7 0%, #034574 100%)";
+          } else if (selectedBgType === 'studio_ivory') {
+            vp.style.background = "radial-gradient(circle, #FFFBEB 0%, #FEF3C7 100%)";
+          } else if (selectedBgType === 'studio_dark') {
+            vp.style.background = "radial-gradient(circle, #334155 0%, #0F172A 100%)";
+          } else {
+            vp.style.background = "#0B2545";
+          }
+        };
+      });
 
       vp.onmousedown = (ev) => {
         isDragging = true;
@@ -2392,7 +2452,7 @@
     }, 4000);
   }
 
-  // Safe Instant App Initializer (Zero Millisecond Cold Start)
+  // Ultra-Fast Zero-Millisecond Instant App Initializer
   async function initApp() {
     initGlobalInteractionEngine();
 
@@ -2403,37 +2463,38 @@
       return;
     }
 
-    // 2. If token exists, verify with server (with deploy/restart resilience)
+    // 2. INSTANT ZERO-SECOND RENDER: Never wait for server on loading screen!
+    const isCoach = localStorage.getItem('sir_is_coach') === '1' || (authToken && authToken.startsWith('coach_tima_'));
+    if (isCoach) {
+      currentUser = { role: 'coach', name: 'Thomas Sir', mobile: '9848173025' };
+      render(); // <-- INSTANT RENDER (0.05s)!
+    } else {
+      const savedPhone = localStorage.getItem('sir_student_phone') || '';
+      currentUser = { role: 'student', mobile: savedPhone };
+      render(); // <-- INSTANT RENDER!
+    }
+
+    // 3. In the background, verify session without blocking UI
     try {
       const me = await api.get('/api/auth/me', { timeout: 4500 });
       if (me && me.authenticated) {
         currentUser = { role: me.role, status: me.status, ...me.user };
         if (me.role === 'coach') localStorage.setItem('sir_is_coach', '1');
-        await loadDataForRole();
-        render();
-        initRealtimeSync();
-        return;
+        if (me.role === 'student' && me.user && me.user.mobile) localStorage.setItem('sir_student_phone', me.user.mobile);
       }
     } catch (err) {
-      console.warn('Session verification error during startup:', err.message);
-      const isCoach = localStorage.getItem('sir_is_coach') === '1' || (authToken && authToken.startsWith('coach_tima_'));
-      
-      // If Coach is logged in and the server is restarting/deploying, KEEP COACH LOGGED IN!
-      if (isCoach) {
-        currentUser = { role: 'coach', name: 'Thomas Sir', mobile: '9848173025' };
-        localStorage.setItem('sir_is_coach', '1');
-        await loadDataForRole().catch(() => {});
-        render();
-        initRealtimeSync();
+      console.warn('Background session notice:', err.message);
+      if (!isCoach && err.message && err.message.includes('Session invalid')) {
+        authToken = null;
+        localStorage.removeItem('sir_token');
+        renderLoginScreen();
         return;
       }
-
-      authToken = null;
-      localStorage.removeItem('sir_token');
-      localStorage.removeItem('sir_is_coach');
     }
 
-    renderLoginScreen();
+    // 4. Silently load latest schedule and student data in background
+    await loadDataForRole().catch(() => {});
+    render();
     initRealtimeSync();
   }
 
@@ -8369,7 +8430,7 @@
   // Safety Fallback: Guarantee screen renders within 1.2s under any network condition
   setTimeout(() => {
     const app = document.getElementById("app");
-    if (app && app.innerHTML.includes("Connecting to Music Slot")) {
+    if (app && (app.innerHTML.includes("Connecting to") || app.querySelector(".loading"))) {
       renderLoginScreen();
     }
   }, 1200);
