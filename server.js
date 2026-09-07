@@ -1834,6 +1834,8 @@ const server = http.createServer(async (req, res) => {
         filePath = path.join(__dirname, 'index.html');
       } else if (pathname === '/gold' || pathname === '/gold/' || pathname === '/gold.html' || pathname === '/luxury') {
         filePath = path.join(__dirname, 'gold.html');
+      } else if (pathname === '/ad' || pathname === '/tutorial' || pathname === '/video' || pathname === '/promo') {
+        filePath = path.join(__dirname, 'tutorial-ad.html');
       } else {
         filePath = path.join(__dirname, pathname);
       }
