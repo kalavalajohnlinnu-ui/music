@@ -1307,19 +1307,20 @@ const server = http.createServer(async (req, res) => {
         if (method === 'POST' && pathname.startsWith('/api/requests/') && (pathname.endsWith('/approve') || pathname.endsWith('/accept'))) {
       const parts = pathname.split('/');
       const id = parts[3];
-      const { batchId, customDays, time, durationHours, slotType, groupName, groupMembers, instruments, skillLevel } = await parseBody(req);
+      const { batchId, customDays, time, durationHours, slotType, groupName, groupMembers, instruments, skillLevel, studentType } = await parseBody(req);
 
       const request = db.prepare('SELECT * FROM requests WHERE id = ?').get(id);
       if (!request) return sendError(res, 404, 'Request not found');
 
       const dur = parseInt(durationHours) || request.duration_hours || 1;
       const stType = slotType || request.slot_type || 'solo';
+      const sType = studentType === 'flexible' ? 'flexible' : 'regular';
       const studentId = uid();
 
       db.prepare(`
         INSERT INTO students (id, name, mobile, photo, batch_id, custom_days, time_slot, duration_hours, slot_type, student_type, group_id, group_name, group_members, instruments, skill_level, timezone, country, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(studentId, request.name, request.mobile, request.photo || '', batchId, customDays ? JSON.stringify(customDays) : null, time, dur, stType, 'regular', null, groupName || request.group_name || null, JSON.stringify(groupMembers || safeJsonParse(request.group_members, [])), instruments ? JSON.stringify(instruments) : request.instruments, skillLevel || 'Beginner', request.timezone || 'Asia/Kolkata', request.country || 'India', Date.now());
+      `).run(studentId, request.name, request.mobile, request.photo || '', batchId || (sType === 'flexible' ? 'flexible' : 'batchA'), customDays ? JSON.stringify(customDays) : null, time || '10:00', dur, stType, sType, null, groupName || request.group_name || null, JSON.stringify(groupMembers || safeJsonParse(request.group_members, [])), instruments ? JSON.stringify(instruments) : request.instruments, skillLevel || 'Beginner', request.timezone || 'Asia/Kolkata', request.country || 'India', Date.now());
 
       db.prepare('DELETE FROM requests WHERE id = ?').run(id);
 
@@ -1328,9 +1329,9 @@ const server = http.createServer(async (req, res) => {
         actorName: 'Thomas Sir',
         actorMobile: '9848173025',
         actionType: 'request_approved',
-        title: `✓ Request Approved: ${request.name}`,
-        message: `Approved ${request.name} into ${batchId} at ${fmtTime(time)}.`,
-        details: `Batch: ${batchId} · Time: ${time}`
+        title: sType === 'flexible' ? `⚡ Request Approved as Flexible: ${request.name}` : `✓ Request Approved: ${request.name}`,
+        message: sType === 'flexible' ? `Approved ${request.name} as Flexible Student initially.` : `Approved ${request.name} into ${batchId} at ${fmtTime(time)}.`,
+        details: `Format: ${sType} · Batch: ${batchId || 'flexible'} · Time: ${time || 'Flexible'}`
       });
 
       return sendJson(res, 200, { success: true, message: `${request.name} added to roster` });
@@ -1845,6 +1846,8 @@ const server = http.createServer(async (req, res) => {
                 b.createdAt || b.created_at || Date.now()
               );
             });
+          }
+
           if (rawRequests.length > 0) {
             const insReq = db.prepare(`
               INSERT OR REPLACE INTO requests (
