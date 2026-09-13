@@ -280,10 +280,12 @@ function dateToKey(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '
 
 function fmtTime(t) {
   if (!t) return '';
+  if (typeof t !== 'string' || !t.includes(':')) return String(t);
   const [h, m] = t.split(':').map(Number);
+  if (isNaN(h)) return String(t);
   const ampm = h >= 12 ? 'PM' : 'AM';
   const displayH = h % 12 || 12;
-  return `${pad(displayH)}:${pad(m)} ${ampm}`;
+  return `${pad(displayH)}:${pad(m || 0)} ${ampm}`;
 }
 
 const DEFAULT_HOURLY_SLOTS = [];
@@ -708,10 +710,11 @@ const server = http.createServer(async (req, res) => {
       const activeBatches = (cfg.batches || []).filter(b => b.days && b.days.includes(weekday));
       const activeBatchIds = activeBatches.map(b => b.id);
 
-      // Match both standard batches and Sir's custom 2-day selections
-      const allActiveStudents = db.prepare(`SELECT id, name, mobile, photo, batch_id as batchId, custom_days as customDays, time_slot as time, duration_hours as durationHours, slot_type as slotType, group_members as groupMembers, instruments, current_lesson as currentLesson, timezone, country, 'regular' as type FROM students WHERE (is_archived IS NULL OR is_archived = 0)`).all();
+      // Match both standard batches and Sir's custom 2-day selections (Flexible students are scheduled on-demand)
+      const allActiveStudents = db.prepare(`SELECT id, name, mobile, photo, batch_id as batchId, custom_days as customDays, time_slot as time, duration_hours as durationHours, slot_type as slotType, student_type as studentType, group_members as groupMembers, instruments, current_lesson as currentLesson, timezone, country, 'regular' as type FROM students WHERE (is_archived IS NULL OR is_archived = 0)`).all();
       
       const regulars = allActiveStudents.filter(st => {
+        if (st.studentType === 'flexible') return false;
         if (st.customDays) {
           try {
             const daysArr = JSON.parse(st.customDays);
@@ -1320,7 +1323,7 @@ const server = http.createServer(async (req, res) => {
       db.prepare(`
         INSERT INTO students (id, name, mobile, photo, batch_id, custom_days, time_slot, duration_hours, slot_type, student_type, group_id, group_name, group_members, instruments, skill_level, timezone, country, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(studentId, request.name, request.mobile, request.photo || '', batchId || (sType === 'flexible' ? 'flexible' : 'batchA'), customDays ? JSON.stringify(customDays) : null, time || '10:00', dur, stType, sType, null, groupName || request.group_name || null, JSON.stringify(groupMembers || safeJsonParse(request.group_members, [])), instruments ? JSON.stringify(instruments) : request.instruments, skillLevel || 'Beginner', request.timezone || 'Asia/Kolkata', request.country || 'India', Date.now());
+      `).run(studentId, request.name, request.mobile, request.photo || '', batchId || (sType === 'flexible' ? 'flexible' : 'batchA'), customDays ? JSON.stringify(customDays) : null, time || (sType === 'flexible' ? 'Flexible' : '10:00'), dur, stType, sType, null, groupName || request.group_name || null, JSON.stringify(groupMembers || safeJsonParse(request.group_members, [])), instruments ? JSON.stringify(instruments) : request.instruments, skillLevel || 'Beginner', request.timezone || 'Asia/Kolkata', request.country || 'India', Date.now());
 
       db.prepare('DELETE FROM requests WHERE id = ?').run(id);
 
