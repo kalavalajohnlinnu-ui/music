@@ -3639,10 +3639,11 @@
 
     let outOfBatchBadge = (it.isOutOfBatch || it.studentId) ? '<span class="badge warn" style="background:#F59E0B;color:#fff;font-size:10px;font-weight:800;padding:2px 6px;">⚡ Out-of-Batch</span>' : '';
     let outOfBatchAttendance = "";
-    if (it.type === 'occasional' && it.studentId) {
+    if (it.type === 'occasional') {
+      const markId = it.studentId || it.id;
       attendanceButtons = `
-        <button class="btn ${it.status === 'present' ? 'good' : 'ghost'}" data-mark="${it.studentId}" data-status="present" data-current="${it.status || ''}">✓ Present</button>
-        <button class="btn ${it.status === 'absent' ? 'warn' : 'ghost'}" data-mark="${it.studentId}" data-status="absent" data-current="${it.status || ''}">Not coming</button>`;
+        <button class="btn ${it.status === 'present' ? 'good' : 'ghost'}" data-mark="${markId}" data-status="present" data-current="${it.status || ''}">✓ Present</button>
+        <button class="btn ${it.status === 'absent' ? 'warn' : 'ghost'}" data-mark="${markId}" data-status="absent" data-current="${it.status || ''}">Not coming</button>`;
     }
     const cancelBtn = (it.type === 'occasional' || it.type === 'makeup') ? `<button class="btn warn" data-cancel-booking="${it.id}">Cancel</button>` : "";
     const groupBadge = isGroup ? `<span class="badge group">${slotTypeLabel(it.slotType)}</span>` : '';
