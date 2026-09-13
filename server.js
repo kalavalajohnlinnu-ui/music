@@ -1754,6 +1754,14 @@ const server = http.createServer(async (req, res) => {
           ? body.tables.bookings
           : (Array.isArray(body.bookings) ? body.bookings : []);
 
+        let rawRequests = (body.tables && Array.isArray(body.tables.requests))
+          ? body.tables.requests
+          : (Array.isArray(body.requests) ? body.requests : []);
+
+        let rawBlocks = (body.tables && Array.isArray(body.tables.blocks))
+          ? body.tables.blocks
+          : (Array.isArray(body.blocks) ? body.blocks : []);
+
         db.exec('BEGIN IMMEDIATE;');
         try {
           const insStu = db.prepare(`
@@ -1835,6 +1843,40 @@ const server = http.createServer(async (req, res) => {
                 b.studentId || b.student_id || null,
                 b.isOutOfBatch || b.is_out_of_batch || 0,
                 b.createdAt || b.created_at || Date.now()
+              );
+            });
+          if (rawRequests.length > 0) {
+            const insReq = db.prepare(`
+              INSERT OR REPLACE INTO requests (
+                id, name, mobile, photo, note, status, duration_hours, slot_type,
+                group_name, group_members, instruments, timezone, country, created_at
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `);
+            rawRequests.forEach(r => {
+              insReq.run(
+                r.id || uid(), r.name, r.mobile, r.photo || '', r.note || '',
+                r.status || 'pending', parseInt(r.duration_hours || r.durationHours) || 1,
+                r.slot_type || r.slotType || 'solo', r.group_name || r.groupName || '',
+                typeof r.group_members === 'object' ? JSON.stringify(r.group_members) : (r.group_members || '[]'),
+                typeof r.instruments === 'object' ? JSON.stringify(r.instruments) : (r.instruments || '["Music"]'),
+                r.timezone || 'Asia/Kolkata', r.country || 'India', r.created_at || r.createdAt || Date.now()
+              );
+            });
+          }
+
+          if (rawBlocks.length > 0) {
+            const insBlk = db.prepare(`
+              INSERT OR REPLACE INTO blocked_slots (
+                id, block_type, start_date, end_date, start_time, end_time, reason, notify_students, created_at
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `);
+            rawBlocks.forEach(blk => {
+              insBlk.run(
+                blk.id || uid(), blk.block_type || blk.blockType || 'time_range',
+                blk.start_date || blk.startDate, blk.end_date || blk.endDate || blk.start_date || blk.startDate,
+                blk.start_time || blk.startTime || '05:00', blk.end_time || blk.endTime || '23:00',
+                blk.reason || 'Studio Closed', blk.notify_students || blk.notifyStudents ? 1 : 0,
+                blk.created_at || blk.createdAt || Date.now()
               );
             });
           }
