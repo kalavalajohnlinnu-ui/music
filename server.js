@@ -341,7 +341,8 @@ function getSlotBlock(dateKey, timeSlot) {
 
 const DEFAULT_BATCHES = [
   { id: 'batchA', name: 'Monday Batch (Batch A)', sub: 'Mon · Wed · Fri (12 Classes/Month)', days: [1, 3, 5] },
-  { id: 'batchB', name: 'Tuesday Batch (Batch B)', sub: 'Tue · Thu · Sat (12 Classes/Month)', days: [2, 4, 6] }
+  { id: 'batchB', name: 'Tuesday Batch (Batch B)', sub: 'Tue · Thu · Sat (12 Classes/Month)', days: [2, 4, 6] },
+  { id: 'batchS', name: 'Sunday Batch (Batch S)', sub: 'Sundays Only · Weekend Regular (4 Classes/Month)', days: [0] }
 ];
 
 const STUDIO_INSTRUMENTS = [
@@ -369,8 +370,17 @@ function setConfigValue(key, value) {
 }
 
 function getConfig() {
+  let batches = getConfigValue('batches', DEFAULT_BATCHES);
+  if (!Array.isArray(batches) || batches.length === 0) {
+    batches = DEFAULT_BATCHES;
+  }
+  // Auto-sync Sunday Batch (batchS) if not already present in database config
+  if (!batches.some(b => b.id === 'batchS' || (b.days && b.days.includes(0)))) {
+    batches.push({ id: 'batchS', name: 'Sunday Batch (Batch S)', sub: 'Sundays Only · Weekend Regular (4 Classes/Month)', days: [0] });
+    setConfigValue('batches', batches);
+  }
   return {
-    batches: getConfigValue('batches', DEFAULT_BATCHES),
+    batches,
     slots: getConfigValue('slots', DEFAULT_HOURLY_SLOTS),
     instruments: getConfigValue('instruments', STUDIO_INSTRUMENTS),
     template: getConfigValue('template', DEFAULT_TEMPLATE),

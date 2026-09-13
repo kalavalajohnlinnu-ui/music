@@ -1462,7 +1462,8 @@
 
         const DEFAULT_BATCHES = [
     { id: 'batchA', name: 'Monday Batch (Batch A)', sub: 'Mon · Wed · Fri (12 Classes/Month)', days: [1, 3, 5] },
-    { id: 'batchB', name: 'Tuesday Batch (Batch B)', sub: 'Tue · Thu · Sat (12 Classes/Month)', days: [2, 4, 6] }
+    { id: 'batchB', name: 'Tuesday Batch (Batch B)', sub: 'Tue · Thu · Sat (12 Classes/Month)', days: [2, 4, 6] },
+    { id: 'batchS', name: 'Sunday Batch (Batch S)', sub: 'Sundays Only · Weekend Regular (4 Classes/Month)', days: [0] }
   ];
 
   const DEFAULT_HOURLY_SLOTS = [];
@@ -3161,7 +3162,10 @@
       listEl.querySelectorAll("[data-flex-wa]").forEach(btn => {
         btn.onclick = () => {
           const t = btn.getAttribute("data-flex-wa");
-          const msg = `Hi Sir, I would like to book the available music class slot at Thomas International Music Academy on ${fmtDateLong(flexSelectedDate)} at ${fmtTime(t)}. Please confirm and block this slot for me!`;
+          const isSun = flexSelectedDate.getDay() === 0;
+          const msg = isSun
+            ? `Hi Sir, I would like to book a Sunday music class slot (${fmtDateLong(flexSelectedDate)} at ${fmtTime(t)}) at Thomas International Music Academy. Please let me know if this slot is available for Sunday Regular Batch or a Non-Regular / Flexible session!`
+            : `Hi Sir, I would like to book the available music class slot at Thomas International Music Academy on ${fmtDateLong(flexSelectedDate)} at ${fmtTime(t)}. Please confirm and block this slot for me!`;
           window.open(waLink(COACH_PRIMARY_MOBILE, msg), "_blank");
         };
       });
@@ -3392,7 +3396,7 @@
         <button class="arrow" id="prevDay">‹</button>
         <div class="dateinfo">
           <div class="big">${fmtDateLong(selectedDate)}</div>
-          <div class="small">${isToday ? "Today" : isTomorrow ? "Tomorrow" : DAY_SHORT[selectedDate.getDay()]}${activeBatches.length ? " · " + activeBatches.map(b => b.name).join(" & ") : " · No regular batch"}</div>
+          <div class="small">${isToday ? "Today" : isTomorrow ? "Tomorrow" : DAY_SHORT[selectedDate.getDay()]}${activeBatches.length ? " · " + activeBatches.map(b => b.name).join(" & ") : (selectedDate.getDay() === 0 ? " · 🌟 Sunday Batch (Batch S) & Non-Regular" : " · No regular batch")}</div>
         </div>
         <button class="arrow" id="nextDay">›</button>
       </div>
@@ -3586,7 +3590,7 @@
           <span class="badge" style="background:#10B981;color:#ffffff;font-weight:800;font-size:10.5px;padding:3px 10px;border-radius:12px;box-shadow:0 2px 6px rgba(16,185,129,0.25);">🟢 FREE / AVAILABLE SLOT</span>
         </div>
         <div class="actionrow" style="margin-top:10px;">
-          <button class="btn sm" data-book-slot="${it.slotTime}" style="background:linear-gradient(135deg, #10B981 0%, #059669 100%);color:#ffffff;border:none;font-weight:700;box-shadow:0 2px 8px rgba(16,185,129,0.35);padding:7px 16px;border-radius:10px;cursor:pointer;">+ Book Slot (Regular / Flexible)</button>
+          <button class="btn sm" data-book-slot="${it.slotTime}" style="background:linear-gradient(135deg, #10B981 0%, #059669 100%);color:#ffffff;border:none;font-weight:700;box-shadow:0 2px 8px rgba(16,185,129,0.35);padding:7px 16px;border-radius:10px;cursor:pointer;">+ Book Slot (Regular / Flexible / Sunday)</button>
         </div>
       </div>`;
     }
@@ -3684,7 +3688,7 @@
           ${durBadge}
           ${it.type === 'makeup' ? '<span class="badge makeup">Make-up</span>' : ''} ${outOfBatchBadge}
           ${groupBadge}
-          <span class="badge ${it.type}">${it.type === 'regular' ? '🎓 Fixed Batch' : it.type === 'makeup' ? '🔄 Make-up' : '⚡ Flexible'}</span>
+          <span class="badge ${it.type}">${it.type === 'regular' ? (it.batchId === 'batchS' ? '🌟 Sunday Regular' : '🎓 Fixed Batch') : it.type === 'makeup' ? '🔄 Make-up' : '⚡ Non-Regular'}</span>
         </div>
       </div>
       <div style="margin-top:10px;">
@@ -4367,6 +4371,10 @@
               <div class="name" style="margin:0;font-size:13.5px;font-weight:700;">Tuesday Batch</div>
               <div class="muted" style="font-size:11.5px;">Tue · Thu · Sat (12 Cl/Mo)</div>
             </div>
+            <div class="batchcard" data-batch="batchS" style="flex:1;min-width:130px;cursor:pointer;">
+              <div class="name" style="margin:0;font-size:13.5px;font-weight:700;color:var(--accent-warm);">🌟 Sunday Batch</div>
+              <div class="muted" style="font-size:11.5px;">Sundays Only (4 Cl/Mo)</div>
+            </div>
           </div>
         </div>
 
@@ -4379,7 +4387,7 @@
             <button type="button" class="btn ghost sm as-d-btn active" data-d="4" style="font-size:11.5px;padding:6px 10px;">Thu</button>
             <button type="button" class="btn ghost sm as-d-btn" data-d="5" style="font-size:11.5px;padding:6px 10px;">Fri</button>
             <button type="button" class="btn ghost sm as-d-btn" data-d="6" style="font-size:11.5px;padding:6px 10px;">Sat</button>
-            <span class="badge" style="background:#FEE2E2;color:#991B1B;font-size:10px;font-weight:700;display:inline-flex;align-items:center;padding:4px 8px;">Sun: Holiday 🚫</span>
+            <button type="button" class="btn ghost sm as-d-btn" data-d="0" style="font-size:11.5px;padding:6px 10px;font-weight:700;color:var(--accent-warm);border-color:var(--accent-warm);">Sun 🌟</button>
           </div>
           <div id="as2DaysText" style="margin-top:8px;font-size:12px;font-weight:700;color:var(--accent-warm);">Selected: Monday &amp; Thursday (Twice a Week · 8 Classes/Mo)</div>
         </div>
@@ -4387,7 +4395,8 @@
         <div id="asWrap1Day" style="display:none;background:var(--bg-deep);padding:12px;border-radius:12px;border:1.5px dashed var(--accent);">
           <div style="font-size:12px;font-weight:700;color:var(--accent-deep);margin-bottom:8px;">👉 Sir, tap 1 class day:</div>
                     <div class="row gap6" id="as1DayChips" style="flex-wrap:wrap;">
-            <button type="button" class="btn ghost sm as-1d-btn active" data-d="6" style="font-size:11.5px;padding:6px 10px;">Saturday</button>
+            <button type="button" class="btn ghost sm as-1d-btn active" data-d="0" style="font-size:11.5px;padding:6px 10px;font-weight:700;color:var(--accent-warm);border-color:var(--accent-warm);">🌟 Sunday (Weekend Regular)</button>
+            <button type="button" class="btn ghost sm as-1d-btn" data-d="6" style="font-size:11.5px;padding:6px 10px;">Saturday</button>
             <button type="button" class="btn ghost sm as-1d-btn" data-d="1" style="font-size:11.5px;padding:6px 10px;">Monday</button>
             <button type="button" class="btn ghost sm as-1d-btn" data-d="2" style="font-size:11.5px;padding:6px 10px;">Tuesday</button>
             <button type="button" class="btn ghost sm as-1d-btn" data-d="3" style="font-size:11.5px;padding:6px 10px;">Wednesday</button>
@@ -4424,6 +4433,7 @@
 
       function getEffectiveDays() {
         if (schMode === '3days') {
+          if (chosenBatch === 'batchS') return [0];
           return chosenBatch === 'batchB' ? [2, 4, 6] : [1, 3, 5];
         } else if (schMode === '2days') {
           return selectedCustomDays;
@@ -4535,7 +4545,7 @@
           const effDays = getEffectiveDays();
           await api.post(`/api/requests/${req.id}/approve`, {
             batchId: schMode === '3days' ? chosenBatch : (schMode === '2days' ? 'custom_2days' : 'custom_1day'),
-            customDays: schMode !== '3days' ? effDays : null,
+            customDays: schMode !== '3days' ? effDays : (chosenBatch === 'batchS' ? [0] : null),
             time,
             durationHours: dur,
             slotType: req.slotType,
@@ -4573,10 +4583,27 @@
     const todayName = DAY_NAMES[todayWeekday];
 
     const todayStudents = studentsData.filter(s => {
+      if (s.customDays) {
+        try {
+          const daysArr = typeof s.customDays === 'string' ? JSON.parse(s.customDays) : s.customDays;
+          if (Array.isArray(daysArr) && daysArr.includes(todayWeekday)) return true;
+        } catch(e) {}
+      }
       const b = batchById(s.batchId);
       return b && b.days && b.days.includes(todayWeekday);
     });
     const regularStudents = studentsData.filter(s => !s.studentType || s.studentType === 'regular');
+    const sundayStudents = studentsData.filter(s => {
+      if (s.batchId === 'batchS') return true;
+      if (s.customDays) {
+        try {
+          const daysArr = typeof s.customDays === 'string' ? JSON.parse(s.customDays) : s.customDays;
+          if (Array.isArray(daysArr) && daysArr.includes(0)) return true;
+        } catch(e) {}
+      }
+      const b = batchById(s.batchId);
+      return b && b.days && b.days.includes(0);
+    });
     const flexibleStudents = studentsData.filter(s => s.studentType === 'flexible');
     const soloStudents = studentsData.filter(s => !s.slotType || s.slotType === 'solo');
     const twiceWeekStudents = studentsData.filter(s => {
@@ -4602,6 +4629,7 @@
     let displayedList = studentsData;
     if (studentViewMode === 'today') displayedList = todayStudents;
     else if (studentViewMode === 'regular') displayedList = regularStudents;
+    else if (studentViewMode === 'sunday') displayedList = sundayStudents;
     else if (studentViewMode === 'flexible') displayedList = flexibleStudents;
     else if (studentViewMode === 'twice_a_week') displayedList = twiceWeekStudents;
     else if (studentViewMode === 'solo') displayedList = soloStudents;
@@ -4648,6 +4676,7 @@
         <button class="${studentViewMode === 'today' ? 'active' : ''}" data-svm="today">📅 Today (${todayName.slice(0,3)} · ${todayStudents.length})</button>
         <button class="${studentViewMode === 'all' ? 'active' : ''}" data-svm="all">🕒 All (${studentsData.length})</button>
         <button class="${studentViewMode === 'regular' ? 'active' : ''}" data-svm="regular">🎓 Regular (${regularStudents.length})</button>
+        <button class="${studentViewMode === 'sunday' ? 'active' : ''}" data-svm="sunday" style="font-weight:700;color:var(--accent-warm);">🌟 Sunday Regular (${sundayStudents.length})</button>
         <button class="${studentViewMode === 'twice_a_week' ? 'active' : ''}" data-svm="twice_a_week">⚡ Twice a Wk (${twiceWeekStudents.length})</button>
         <button class="${studentViewMode === 'flexible' ? 'active' : ''}" data-svm="flexible">⚡ Flexible (${flexibleStudents.length})</button>
         <button class="${studentViewMode === 'group' ? 'active' : ''}" data-svm="group">👥 Groups (${distinctGroups.length})</button>
@@ -5485,6 +5514,7 @@
 
     function getEdEffectiveDays() {
       if (edSchMode === '3days') {
+        if (chosenBatch === 'batchS') return [0];
         return chosenBatch === 'batchB' ? [2, 4, 6] : [1, 3, 5];
       } else if (edSchMode === '2days') {
         return edCustomDays;
@@ -5554,7 +5584,7 @@
         <div class="segmented" id="edSchMode" style="margin-bottom:10px;">
           <button type="button" class="${edSchMode === '3days' ? 'active' : ''}" data-esm="3days">🎓 3 Days / Week</button>
           <button type="button" class="${edSchMode === '2days' ? 'active' : ''}" data-esm="2days">⚡ Select Any 2 Days</button>
-          <button type="button" class="${edSchMode === '1day' ? 'active' : ''}" data-esm="1day">🌟 1 Day / Saturday</button>
+          <button type="button" class="${edSchMode === '1day' ? 'active' : ''}" data-esm="1day">🌟 1 Day / Weekend</button>
         </div>
 
         <div id="edWrap3Days" style="display:${edSchMode === '3days' ? 'block' : 'none'};">
@@ -5566,6 +5596,10 @@
             <div class="batchcard ${chosenBatch === 'batchB' ? 'selected' : ''}" data-batch="batchB" style="flex:1;min-width:130px;cursor:pointer;">
               <div class="name" style="margin:0;font-size:13.5px;font-weight:700;">Tuesday Batch</div>
               <div class="muted" style="font-size:11.5px;">Tue · Thu · Sat (12 Cl/Mo)</div>
+            </div>
+            <div class="batchcard ${chosenBatch === 'batchS' ? 'selected' : ''}" data-batch="batchS" style="flex:1;min-width:130px;cursor:pointer;">
+              <div class="name" style="margin:0;font-size:13.5px;font-weight:700;color:var(--accent-warm);">🌟 Sunday Batch</div>
+              <div class="muted" style="font-size:11.5px;">Sundays Only (4 Cl/Mo)</div>
             </div>
           </div>
         </div>
@@ -5579,7 +5613,7 @@
             <button type="button" class="btn ghost sm ed-d-btn ${edCustomDays.includes(4) ? 'active' : ''}" data-d="4" style="font-size:11.5px;padding:6px 10px;">Thu</button>
             <button type="button" class="btn ghost sm ed-d-btn ${edCustomDays.includes(5) ? 'active' : ''}" data-d="5" style="font-size:11.5px;padding:6px 10px;">Fri</button>
             <button type="button" class="btn ghost sm ed-d-btn ${edCustomDays.includes(6) ? 'active' : ''}" data-d="6" style="font-size:11.5px;padding:6px 10px;">Sat</button>
-            <span class="badge" style="background:#FEE2E2;color:#991B1B;font-size:10px;font-weight:700;display:inline-flex;align-items:center;padding:4px 8px;">Sun: Holiday 🚫</span>
+            <button type="button" class="btn ghost sm ed-d-btn ${edCustomDays.includes(0) ? 'active' : ''}" data-d="0" style="font-size:11.5px;padding:6px 10px;font-weight:700;color:var(--accent-warm);border-color:var(--accent-warm);">Sun 🌟</button>
           </div>
           <div id="ed2DaysText" style="margin-top:8px;font-size:12px;font-weight:700;color:var(--accent-warm);">
             Selected: ${edCustomDays.map(x => dayNamesMap[x]).join(' & ')} (Twice a Week · 8 Classes/Mo)
@@ -5589,6 +5623,7 @@
         <div id="edWrap1Day" style="display:${edSchMode === '1day' ? 'block' : 'none'};background:var(--bg-deep);padding:12px;border-radius:12px;border:1.5px dashed var(--accent);">
           <div style="font-size:12px;font-weight:700;color:var(--accent-deep);margin-bottom:8px;">👉 Sir, tap 1 class day:</div>
           <div class="row gap6" id="ed1DayChips" style="flex-wrap:wrap;">
+            <button type="button" class="btn ghost sm ed-1d-btn ${edCustomDays.includes(0) ? 'active' : ''}" data-d="0" style="font-size:11.5px;padding:6px 10px;font-weight:700;color:var(--accent-warm);border-color:var(--accent-warm);">🌟 Sunday (Weekend Regular)</button>
             <button type="button" class="btn ghost sm ed-1d-btn ${edCustomDays.includes(6) ? 'active' : ''}" data-d="6" style="font-size:11.5px;padding:6px 10px;">Saturday</button>
             <button type="button" class="btn ghost sm ed-1d-btn ${edCustomDays.includes(1) ? 'active' : ''}" data-d="1" style="font-size:11.5px;padding:6px 10px;">Monday</button>
             <button type="button" class="btn ghost sm ed-1d-btn ${edCustomDays.includes(2) ? 'active' : ''}" data-d="2" style="font-size:11.5px;padding:6px 10px;">Tuesday</button>
@@ -5819,7 +5854,7 @@
             mobile: cleanPhone || student.mobile,
             photo: editPhotoBase64 || student.photo,
             batchId: edSchMode === '3days' ? chosenBatch : (edSchMode === '2days' ? 'custom_2days' : 'custom_1day'),
-            customDays: edSchMode !== '3days' ? effDays : null,
+            customDays: edSchMode !== '3days' ? effDays : (chosenBatch === 'batchS' ? [0] : null),
             time,
             durationHours,
             slotType,
@@ -5999,6 +6034,10 @@
               <div class="name" style="margin:0;font-size:13.5px;font-weight:700;">Tuesday Batch</div>
               <div class="muted" style="font-size:11.5px;">Tue · Thu · Sat (12 Cl/Mo)</div>
             </div>
+            <div class="batchcard" data-batch="batchS" style="flex:1;min-width:130px;cursor:pointer;">
+              <div class="name" style="margin:0;font-size:13.5px;font-weight:700;color:var(--accent-warm);">🌟 Sunday Batch</div>
+              <div class="muted" style="font-size:11.5px;">Sundays Only (4 Cl/Mo)</div>
+            </div>
           </div>
         </div>
 
@@ -6011,7 +6050,7 @@
             <button type="button" class="btn ghost sm st-d-btn active" data-d="4" style="font-size:11.5px;padding:6px 10px;">Thu</button>
             <button type="button" class="btn ghost sm st-d-btn" data-d="5" style="font-size:11.5px;padding:6px 10px;">Fri</button>
             <button type="button" class="btn ghost sm st-d-btn" data-d="6" style="font-size:11.5px;padding:6px 10px;">Sat</button>
-            <span class="badge" style="background:#FEE2E2;color:#991B1B;font-size:10px;font-weight:700;display:inline-flex;align-items:center;padding:4px 8px;">Sun: Holiday 🚫</span>
+            <button type="button" class="btn ghost sm st-d-btn" data-d="0" style="font-size:11.5px;padding:6px 10px;font-weight:700;color:var(--accent-warm);border-color:var(--accent-warm);">Sun 🌟</button>
           </div>
           <div id="st2DaysText" style="margin-top:8px;font-size:12px;font-weight:700;color:var(--accent-warm);">Selected: Monday &amp; Thursday (Twice a Week · 8 Classes/Mo)</div>
         </div>
@@ -6019,7 +6058,8 @@
         <div id="stWrap1Day" style="display:none;background:var(--bg-deep);padding:12px;border-radius:12px;border:1.5px dashed var(--accent);">
           <div style="font-size:12px;font-weight:700;color:var(--accent-deep);margin-bottom:8px;">👉 Sir, tap 1 class day:</div>
                     <div class="row gap6" id="st1DayChips" style="flex-wrap:wrap;">
-            <button type="button" class="btn ghost sm st-1d-btn active" data-d="6" style="font-size:11.5px;padding:6px 10px;">Saturday</button>
+            <button type="button" class="btn ghost sm st-1d-btn active" data-d="0" style="font-size:11.5px;padding:6px 10px;font-weight:700;color:var(--accent-warm);border-color:var(--accent-warm);">🌟 Sunday (Weekend Regular)</button>
+            <button type="button" class="btn ghost sm st-1d-btn" data-d="6" style="font-size:11.5px;padding:6px 10px;">Saturday</button>
             <button type="button" class="btn ghost sm st-1d-btn" data-d="1" style="font-size:11.5px;padding:6px 10px;">Monday</button>
             <button type="button" class="btn ghost sm st-1d-btn" data-d="2" style="font-size:11.5px;padding:6px 10px;">Tuesday</button>
             <button type="button" class="btn ghost sm st-1d-btn" data-d="3" style="font-size:11.5px;padding:6px 10px;">Wednesday</button>
@@ -6062,6 +6102,7 @@
 
       function getStEffectiveDays() {
         if (stSchMode === '3days') {
+          if (chosenBatch === 'batchS') return [0];
           return chosenBatch === 'batchB' ? [2, 4, 6] : [1, 3, 5];
         } else if (stSchMode === '2days') {
           return stCustomDays;
@@ -6322,7 +6363,7 @@
             photo: addPhotoBase64 || '',
             timezone: stTimezoneVal,
             batchId: stSchMode === '3days' ? chosenBatch : (stSchMode === '2days' ? 'custom_2days' : 'custom_1day'),
-          customDays: stSchMode !== '3days' ? getStEffectiveDays() : null,
+            customDays: stSchMode !== '3days' ? getStEffectiveDays() : (chosenBatch === 'batchS' ? [0] : null),
             time,
             durationHours,
             slotType,
@@ -8425,12 +8466,21 @@
 
       <div id="reqRemainingForm" style="display:none;">
         <div class="field">
-          <label>Preferred Days &amp; Note for Music Sir (Optional)</label>
-          <textarea id="reqNote" placeholder="e.g. Prefer Mon/Wed/Fri evening slots between 5-8 PM, prior musical background"></textarea>
+          <label>Preferred Schedule &amp; Attendance Format *</label>
+          <select id="reqBatchPref" style="font-size:13px;padding:9px 12px;font-weight:600;margin-bottom:8px;border-radius:10px;border:1.5px solid var(--accent);background:var(--bg-deep);width:100%;color:var(--text);">
+            <option value="regular_standard">🎓 Regular Batches (Mon/Wed/Fri or Tue/Thu/Sat · 12 Classes/Mo)</option>
+            <option value="regular_sunday">🌟 Sunday Only Batch (Weekend Regular · 4 Classes/Mo)</option>
+            <option value="non_regular_flexible">⚡ Non-Regular / Flexible Sessions (Single Class / Weekend Drop-in / Trial)</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Preferred Timings &amp; Message for Music Sir (Optional)</label>
+          <textarea id="reqNote" placeholder="e.g. Prefer Sunday morning 9 AM slot, or weekday evening 6 PM, prior musical background..."></textarea>
         </div>
 
         <div class="muted" style="font-size:12px;background:rgba(14, 165, 233,0.08);padding:10px 12px;border-radius:8px;border:1px solid var(--line);margin-bottom:14px;line-height:1.4;text-align:left;">
-          ℹ️ <b>Individual Profiles:</b> Each sibling will have their own separate profile, attendance record, and certificate in the roster. Music Sir will review your application and assign your confirmed regular class timing.
+          ℹ️ <b>Individual Profiles:</b> Each sibling will have their own separate profile, attendance record, and certificate in the roster. Music Sir will review your application and assign your confirmed class timing.
         </div>
 
         <button class="btn primary block" id="reqSend">Submit Application to Music Teacher</button>
@@ -8588,8 +8638,10 @@
       const applicantName = mainNameInput.value.trim();
       const applicantMobile = mainMobileInput.value.trim();
       const slotType = reqType.value;
-      const durationHours = parseInt(reqDur.value) || 0;
-      const note = document.getElementById("reqNote").value.trim();
+      const rawNote = document.getElementById("reqNote").value.trim();
+      const batchPrefEl = document.getElementById("reqBatchPref");
+      const batchPrefLabel = batchPrefEl ? (batchPrefEl.options[batchPrefEl.selectedIndex]?.text || '') : '';
+      const note = batchPrefLabel ? `[Preference: ${batchPrefLabel}] ${rawNote}`.trim() : rawNote;
 
       if (!joinPhotoBase64) {
         const photoBox = document.getElementById("reqPhotoBox");
