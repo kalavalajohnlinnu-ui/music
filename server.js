@@ -903,13 +903,41 @@ const server = http.createServer(async (req, res) => {
         return sendError(res, 400, 'Name, 10-digit mobile, date, and time are required');
       }
 
-      // Photo is optional for flexible guest booking
+      // Check if student exists in students table by studentId or mobile
+      let existingStudent = studentId ? db.prepare('SELECT * FROM students WHERE id = ?').get(studentId) : null;
+      if (!existingStudent && cleanPhone) {
+        existingStudent = db.prepare('SELECT * FROM students WHERE mobile = ? AND (is_archived IS NULL OR is_archived = 0)').get(cleanPhone);
+      }
+
+      const finalStudentId = existingStudent ? existingStudent.id : (studentId || uid());
+
+      // If student is new, automatically save a permanent student profile in the database as 'flexible'
+      if (!existingStudent) {
+        db.prepare(`
+          INSERT INTO students (id, name, mobile, photo, batch_id, time_slot, duration_hours, slot_type, student_type, instruments, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(
+          finalStudentId,
+          name.trim(),
+          cleanPhone,
+          photo || '',
+          'flexible',
+          time,
+          dur,
+          slotType || 'solo',
+          'flexible',
+          JSON.stringify(instruments || ['Music']),
+          Date.now()
+        );
+      } else if (photo && !existingStudent.photo) {
+        db.prepare('UPDATE students SET photo = ? WHERE id = ?').run(photo, existingStudent.id);
+      }
 
       const id = uid();
       db.prepare(`
         INSERT INTO bookings (id, name, mobile, photo, date_key, time_slot, duration_hours, slot_type, group_members, instruments, student_id, is_out_of_batch, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(id, name.trim(), cleanPhone, photo || '', date, time, dur, slotType || 'solo', JSON.stringify(groupMembers || []), JSON.stringify(instruments || []), studentId || null, isOutOfBatch ? 1 : 0, Date.now());
+      `).run(id, name.trim(), cleanPhone, photo || (existingStudent ? existingStudent.photo : ''), date, time, dur, slotType || 'solo', JSON.stringify(groupMembers || []), JSON.stringify(instruments || ['Music']), finalStudentId, isOutOfBatch ? 1 : 0, Date.now());
 
       logActivity({
         actorType: 'coach',
@@ -921,7 +949,7 @@ const server = http.createServer(async (req, res) => {
         details: id
       });
 
-      return sendJson(res, 201, { success: true, booking: { id, name: name.trim(), mobile: cleanPhone, date, time, durationHours: dur, studentId, isOutOfBatch } });
+      return sendJson(res, 201, { success: true, booking: { id, name: name.trim(), mobile: cleanPhone, date, time, durationHours: dur, studentId: finalStudentId, isOutOfBatch } });
     }
 
     if (method === 'DELETE' && pathname.startsWith('/api/bookings/')) {
